@@ -1,10 +1,10 @@
-# Script&Sprite Story Studio
+# Game Builder
 
 A separate studio that starts with a story or chapter, discovers its cast and locations, and turns them into consistent visual designs. It uses Meta Model API for Muse Spark and Muse Image, with local workers for SAM 3, SAM 3D Body and SAM 3D Objects. It does not change or deploy privacybyai.com.
 
 ## Start
 
-Double-click **Start-Studio.cmd**, then open http://127.0.0.1:8977. Node.js 22 or newer is required (24.16.0 was used here). No npm installation is needed. **Stop-Studio.cmd** stops the launcher-owned server. Finish or cancel active jobs before stopping. Closing the browser alone leaves the server running.
+Double-click **Start-Game-Builder.cmd**, then open http://127.0.0.1:8977. Node.js 22 or newer is required (24.16.0 was used here). No npm installation is needed. **Stop-Game-Builder.cmd** stops the launcher-owned server. Finish or cancel active jobs before stopping. Closing the browser alone leaves the server running.
 
 Alternatively, open a terminal in this folder and run `node server.mjs`. Ctrl+C stops that terminal-owned server.
 

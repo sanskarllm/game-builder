@@ -4,11 +4,11 @@ Prepared 31 October 2026. This is a source/worker preparation, not a verified wo
 
 ## SAM 3D Body — separate human-character route
 
-The story studio now has a separate Body adapter and Settings fields. It directly loads a local Body checkpoint plus MHR model, uses one full-frame human design, and skips the optional detector, segmentor and FOV models. It uses the body decoder (no extra hand refinement) and exports an untextured body GLB. It does not export clothing, hair, an animation rig or a textured likeness. Use one full-body human image, not a group or a creature.
+Game Builder has a separate Body adapter and Settings fields. It directly loads a local Body checkpoint plus MHR model, uses one full-frame human design, and skips the optional detector, segmentor and FOV models. It uses the body decoder (no extra hand refinement) and exports an untextured body GLB. It does not export clothing, hair, an animation rig or a textured likeness. Use one full-body human image, not a group or a creature.
 
 Official source: https://github.com/facebookresearch/sam-3d-body
 Pinned revision: b5c765a0d89d789985e186d396315e7590887b94
-The preparation script also downloads this source under ~/script-sprite-models/sam-3d-body.
+The preparation script also downloads this source under ~/game-builder-models/sam-3d-body.
 
 Request the Body weights separately at https://huggingface.co/facebook/sam-3d-body-vith or https://huggingface.co/facebook/sam-3d-body-dinov3. Keep model.ckpt, model_config.yaml and assets/mhr_model.pt together. Configure a separate compatible Python environment, the repository directory, checkpoint and MHR file in Settings. Follow the official INSTALL.md; the adapter additionally needs trimesh for GLB export. Avoid the optional notebook model-download helpers when running offline.
 
@@ -28,7 +28,7 @@ From PowerShell in the studio folder:
     powershell -NoProfile -File scripts/Prepare-Local.ps1 -CheckOnly
     powershell -NoProfile -File scripts/Prepare-Local.ps1
 
-The second command prepares source folders under ~/script-sprite-models inside WSL and writes preparation.json. It does not run repository setup code or download model weights. Existing folders at different revisions are left untouched.
+The second command prepares source folders under ~/game-builder-models inside WSL and writes preparation.json. It does not run repository setup code or download model weights. Existing folders at different revisions are left untouched.
 
 Official SAM 3 source:
 https://github.com/facebookresearch/sam3
@@ -68,11 +68,11 @@ Download SAM 3's checkpoint and the full SAM 3D Objects checkpoint/config tree a
 In studio Settings choose “WSL Linux on this PC” and distribution PCMClawUbuntu. Enter absolute Linux paths, for example after you have actually created these environments and downloaded the models:
 
 SAM Python: /home/sanskar/sam3-env/bin/python
-SAM repository: /home/sanskar/script-sprite-models/sam3
+SAM repository: /home/sanskar/game-builder-models/sam3
 SAM checkpoint: /home/sanskar/models/sam3.pt
 
 3D Python: /home/sanskar/sam3d-env/bin/python
-3D repository: /home/sanskar/script-sprite-models/sam-3d-low-vram
+3D repository: /home/sanskar/game-builder-models/sam-3d-low-vram
 3D pipeline: /home/sanskar/models/sam-3d-objects/checkpoints/pipeline.yaml
 Memory profile: Experimental — stage offloading
 

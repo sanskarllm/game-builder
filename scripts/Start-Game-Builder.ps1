@@ -7,9 +7,9 @@ $url = "http://127.0.0.1:$Port"
 $state = $null
 try { $state = Invoke-RestMethod "$url/api/state" -TimeoutSec 2 } catch { }
 if ($state) {
-  if ($state.application -ne 'script-and-sprite-asset-studio') { throw "Port $Port belongs to another app." }
+  if ($state.application -ne 'game-builder') { throw "Port $Port belongs to another app." }
   if (-not $NoBrowser) { Start-Process $url }
-  Write-Host "Studio is already running at $url"
+  Write-Host "Game Builder is already running at $url"
   exit 0
 }
 $nodePath = (Get-Command node -ErrorAction SilentlyContinue).Source
@@ -30,10 +30,10 @@ try {
 for ($attempt = 0; $attempt -lt 30; $attempt++) {
   try {
     $state = Invoke-RestMethod "$url/api/state" -TimeoutSec 1
-    if ($state.application -eq 'script-and-sprite-asset-studio') { break }
+    if ($state.application -eq 'game-builder') { break }
   } catch { }
   Start-Sleep -Milliseconds 500
 }
-if ($state.application -ne 'script-and-sprite-asset-studio') { throw 'Studio did not start. Read data\studio-errors.log.' }
+if ($state.application -ne 'game-builder') { throw 'Game Builder did not start. Read data\studio-errors.log.' }
 if (-not $NoBrowser) { Start-Process $url }
-Write-Host "Studio ready at $url. Run Stop-Studio.cmd when finished."
+Write-Host "Game Builder ready at $url. Run Stop-Game-Builder.cmd when finished."

@@ -8,7 +8,7 @@ $('#three-status').insertAdjacentHTML('beforebegin','<label>Memory profile<selec
 $('#three-status').parentElement.querySelector('.footnote').textContent='Experimental mode uses a pinned community fork that unloads stages to system RAM. A 12 GB GPU is borderline, and RTX 50-series dependency compatibility must be tested. Output is a GLB mesh and optional PLY splat; game optimization and rigging are separate.';
 $('#three-config').closest('label').insertAdjacentHTML('afterend','<button type="button" class="button secondary" data-action="three-check">Check 3D environment</button><pre id="three-check-result" class="check-result" hidden></pre>');
 $('[data-action="plan"]').insertAdjacentHTML('afterend','<button class="text-button" style="margin:12px 0" data-action="save-brief">Save brief without generating</button>');
-for(const [id,value] of [['sam-python','/home/you/sam3-env/bin/python'],['sam-checkpoint','/home/you/models/sam3.pt'],['sam-repo','/home/you/script-sprite-models/sam3']])$('#'+id).placeholder=value;
+for(const [id,value] of [['sam-python','/home/you/sam3-env/bin/python'],['sam-checkpoint','/home/you/models/sam3.pt'],['sam-repo','/home/you/game-builder-models/sam3']])$('#'+id).placeholder=value;
 const p=()=>state?.projects.find(x=>x.id===activeId);
 const a=()=>p()?.assets.find(x=>x.id===focusedId);
 const fileURL=(project,name)=>'/files/'+project.id+'/'+name;

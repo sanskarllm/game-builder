@@ -21,7 +21,7 @@ def git(args, folder=None):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--fetch-sources", action="store_true")
-    parser.add_argument("--root", default=str(Path.home() / "script-sprite-models"))
+    parser.add_argument("--root", default=str(Path.home() / "game-builder-models"))
     args = parser.parse_args()
     if sys.platform != "linux":
         raise SystemExit("Run this preparation script inside WSL Linux.")

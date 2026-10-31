@@ -11,4 +11,4 @@ if ($ownedProcess) {
   Stop-Process -Id ([int]$record.processId)
 }
 Remove-Item -LiteralPath $recordFile
-Write-Host 'Studio stopped. Saved projects and completed images remain in data.'
+Write-Host 'Game Builder stopped. Saved projects and completed images remain in data.'

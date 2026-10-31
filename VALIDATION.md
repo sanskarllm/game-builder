@@ -5,7 +5,7 @@ Passed:
 - Browser: story editor and local save/reload, missing Meta key opening Settings, cast-to-design navigation, editable design prompts preserved on reload, source facts/suggested additions displayed separately, and Body settings present. Cast rendering used a clearly labelled isolated QA fixture, not an AI result. Earlier image import checks also passed. No browser console warnings/errors observed during these flows.
 - Real Windows-to-WSL preflight through the local app: Python 3.12.3, SAM source found, PyTorch absent. No mounted Windows drive was needed.
 - Windows launcher started the server on 127.0.0.1:8977.
-- Pinned SAM 3, official SAM 3D Body and experimental SAM 3D Objects sources prepared under /home/sanskar/script-sprite-models in PCMClawUbuntu.
+- Pinned SAM 3, official SAM 3D Body and experimental SAM 3D Objects sources prepared under /home/sanskar/game-builder-models in PCMClawUbuntu.
 
 Not yet validated:
 - Real Meta generation: API key/model access not yet configured at validation time. Provider integration tests use mocks.

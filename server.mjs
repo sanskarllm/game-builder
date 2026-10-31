@@ -39,7 +39,7 @@ export async function createStudio({dataDir=process.env.ASSET_STUDIO_DATA||path.
   const projectDir=id=>{if(!UUID.test(id))throw error('Invalid project identifier.');return path.join(root,'projects',id);};
   const imagePath=(p,name)=>{if(!FILE.test(name))throw error('Invalid asset filename.');return path.join(projectDir(p.id),name);};
   const writeFile=(p,bytes,ext)=>{const name=randomUUID()+'.'+ext;fs.mkdirSync(projectDir(p.id),{recursive:true});fs.writeFileSync(imagePath(p,name),bytes);return name;};
-  const view=()=>({application:'script-and-sprite-asset-studio',projects:db.projects.map(p=>({...p,storyAnalysisStale:!!p.storyAnalysis&&p.storyAnalysis.storyHash!==storyHash(p.story)})),jobs:db.jobs.slice(-40).reverse(),settings:{...config,keyConfigured:!!key,keySaved:fs.existsSync(path.join(root,'meta-key.dpapi')),keyWarning},hardware:{...gpu,ramGB:Math.round(os.totalmem()/1073741824),os:process.platform},readiness:localReadiness(config,gpu),dataDirectory:root});
+  const view=()=>({application:'game-builder',projects:db.projects.map(p=>({...p,storyAnalysisStale:!!p.storyAnalysis&&p.storyAnalysis.storyHash!==storyHash(p.story)})),jobs:db.jobs.slice(-40).reverse(),settings:{...config,keyConfigured:!!key,keySaved:fs.existsSync(path.join(root,'meta-key.dpapi')),keyWarning},hardware:{...gpu,ramGB:Math.round(os.totalmem()/1073741824),os:process.platform},readiness:localReadiness(config,gpu),dataDirectory:root});
   async function execute(job,signal){
     const p=project(job.projectId);job.status='running';job.startedAt=new Date().toISOString();save();
     const timed=ms=>AbortSignal.any([signal,AbortSignal.timeout(ms)]);
@@ -204,7 +204,7 @@ export async function createStudio({dataDir=process.env.ASSET_STUDIO_DATA||path.
         }
         if(match[2]==='scene'&&req.method==='POST'){p.scene=validateScene(body,p.assets);save();return json(p.scene);}
         if(match[2]==='export'&&req.method==='GET'){
-          const entries=[{name:'project.json',data:JSON.stringify(p,null,2)},{name:'story.txt',data:p.story||''},{name:'story-breakdown.json',data:JSON.stringify(p.storyAnalysis||null,null,2)},{name:'README.txt',data:'Script&Sprite Story Studio export\nOriginal story, extracted cast/locations/scenes, linked designs, PNG/JPEG/WebP images, optional SAM masks/cutouts, optional GLB/PLY outputs, and project.json.\nScene positions are percentage coordinates relative to a 16:9 canvas. Import images/GLB into your engine. Meshes may require retopology, rigging and material cleanup; they are not automatically game-ready.\n'}];let total=0;
+          const entries=[{name:'project.json',data:JSON.stringify(p,null,2)},{name:'story.txt',data:p.story||''},{name:'story-breakdown.json',data:JSON.stringify(p.storyAnalysis||null,null,2)},{name:'README.txt',data:'Game Builder export\nOriginal story, extracted cast/locations/scenes, linked designs, PNG/JPEG/WebP images, optional SAM masks/cutouts, optional GLB/PLY outputs, and project.json.\nScene positions are percentage coordinates relative to a 16:9 canvas. Import images/GLB into your engine. Meshes may require retopology, rigging and material cleanup; they are not automatically game-ready.\n'}];let total=0;
           for(const a of p.assets)for(const [kind,name]of Object.entries(a.files)){const file=imagePath(p,name);const size=fs.statSync(file).size;total+=size;if(total>200*1024*1024)throw error('Pack exceeds the 200 MB ZIP limit. Copy files from the local data folder instead.');entries.push({name:'assets/'+a.id+'/'+kind+path.extname(name),data:fs.readFileSync(file)});}
           const zip=makeZip(entries);res.writeHead(200,{'Content-Type':'application/zip','Content-Disposition':'attachment; filename="asset-pack-'+p.id+'.zip"'});res.end(zip);return;
         }
@@ -232,6 +232,6 @@ export async function createStudio({dataDir=process.env.ASSET_STUDIO_DATA||path.
   return {server,port:server.address().port,close:async()=>{closing=true;for(const c of running.values())c.abort();await new Promise(r=>server.close(r));}};
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
-  const app=await createStudio();console.log('Script&Sprite Asset Studio: http://127.0.0.1:'+app.port);console.log('Local library: '+path.resolve(process.env.ASSET_STUDIO_DATA||path.join(ROOT,'data')));
+  const app=await createStudio();console.log('Game Builder: http://127.0.0.1:'+app.port);console.log('Local library: '+path.resolve(process.env.ASSET_STUDIO_DATA||path.join(ROOT,'data')));
   process.on('SIGINT',async()=>{await app.close();process.exit(0);});process.on('SIGTERM',async()=>{await app.close();process.exit(0);});
 }
