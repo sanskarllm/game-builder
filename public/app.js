@@ -2,7 +2,7 @@ import {initStoryUI,renderStoryBreakdown} from './story-ui.js';
 initStoryUI();
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let state,activeId=localStorage.getItem('asset-studio-project'),focusedId=null,view='story',filter='all',preview='source',selected=new Set(),lastProjects='',toastTimer,busy=false;
+let state,activeId=new URLSearchParams(location.search).get('project')||localStorage.getItem('asset-studio-project'),focusedId=null,view='story',filter='all',preview='source',selected=new Set(),lastProjects='',toastTimer,busy=false;
 $('#sam-python').closest('.settings-section').insertAdjacentHTML('afterbegin','<div class="form-grid"><label>Local model runtime<select id="worker-runtime"><option value="wsl">WSL Linux on this PC</option><option value="native">Native Python</option></select></label><label>WSL distribution<input id="wsl-distro" value="PCMClawUbuntu"></label></div><p class="footnote">For WSL, enter Linux paths below. Selected images travel through a local pipe; no Windows drive mount is needed. The app and library remain on this PC.</p>');
 $('#three-status').insertAdjacentHTML('beforebegin','<label>Memory profile<select id="three-mode"><option value="experimental">Experimental · stage offloading (~12 GB reported)</option><option value="official">Official · 32 GB or more</option></select></label>');
 $('#three-status').parentElement.querySelector('.footnote').textContent='Experimental mode uses a pinned community fork that unloads stages to system RAM. A 12 GB GPU is borderline, and RTX 50-series dependency compatibility must be tested. Output is a GLB mesh and optional PLY splat; game optimization and rigging are separate.';
@@ -49,6 +49,7 @@ function renderStatus(){
 }
 function render(){
   const project=p();
+  $('#back-to-editor').href=project?'/editor?project='+project.id:'/editor';
   $('#project-list').innerHTML=state.projects.map(x=>'<button class="project-item '+(x.id===activeId?'active':'')+'" data-project="'+x.id+'" title="'+esc(x.title)+'"><i>◇</i><span>'+esc(x.title)+'</span></button>').join('');
   $('#project-title').textContent=project?.title||'Every character starts with a story.';
   $('#project-subtitle').textContent=project?.summary||'Write the story. Discover the cast. Bring them to life.';
@@ -175,5 +176,5 @@ let drag=null;
 $('#scene-canvas').addEventListener('pointerdown',e=>{const target=e.target.closest('[data-layer]');if(!target)return;const layer=p().scene.layers.find(l=>l.assetId===target.dataset.layer);drag={target,layer,box:$('#scene-canvas').getBoundingClientRect(),startX:e.clientX,startY:e.clientY,x:layer.x,y:layer.y};target.setPointerCapture(e.pointerId);});
 $('#scene-canvas').addEventListener('pointermove',e=>{if(!drag)return;const d=drag;d.layer.x=Math.max(0,Math.min(100,d.x+(e.clientX-d.startX)/d.box.width*100));d.layer.y=Math.max(0,Math.min(100,d.y+(e.clientY-d.startY)/d.box.height*100));d.target.style.left=d.layer.x+'%';d.target.style.top=d.layer.y+'%';});
 $('#scene-canvas').addEventListener('pointerup',async()=>{if(!drag)return;drag=null;try{await api('/projects/'+p().id+'/scene',p().scene);await refresh();}catch(e){toast(e.message,true);}});
-try{await refresh(true);setView('story');}catch(e){toast('Could not open the local library: '+e.message,true);}
+try{await refresh(true);const requested=location.hash.slice(1);setView(['assets','scene','jobs'].includes(requested)?requested:'story');}catch(e){toast('Could not open the local library: '+e.message,true);}
 setInterval(()=>{if(!drag&&!document.hidden)refresh().catch(()=>{});},2500);

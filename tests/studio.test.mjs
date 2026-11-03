@@ -100,3 +100,29 @@ test('Expression generation uses the base character as an image reference and pr
   assert.equal((await ctx.call('/api/jobs',{type:'body',projectId:id,assetIds:[parent.id]})).status,400);
   assert.equal((await ctx.call('/api/jobs',{type:'body',projectId:id,assetIds:[parent.id],singleHumanConfirmed:true})).status,409);
 });
+
+test('Editor saves branching dialogue and audio across restarts and rejects stale writes',async t=>{
+  const ctx=await harness(t);
+  const {body:project}=await ctx.call('/api/projects',{title:'Editor persistence'});
+  const route='/api/projects/'+project.id;
+  const opening={id:'start',title:'Opening',dialogue:'Take the lantern.',speakerId:'',choices:[{text:'Continue',nextNodeId:'end'}]};
+  const ending={id:'end',title:'End',dialogue:'The path is lit.',speakerId:'',choices:[]};
+  const document={scenes:{start:opening,end:ending},variables:[],overlays:[],time:{enabled:false,startMinutes:480,format:'24h',dayNightTint:true}};
+  assert.equal((await ctx.call(route+'/editor',{revision:0,document})).body.revision,1);
+  assert.equal((await ctx.call(route+'/editor',{revision:0,document})).status,409);
+  const bad=structuredClone(document);bad.scenes.start.choices[0].nextNodeId='missing';
+  assert.equal((await ctx.call(route+'/editor',{revision:1,document:bad})).status,400);
+  assert.equal((await ctx.call(route+'/tracks',{audio:Buffer.from('not audio content').toString('base64')})).status,400);
+  const wav=Buffer.from('RIFF0000WAVEfmt ');
+  const track=(await ctx.call(route+'/tracks',{name:'Theme',audio:wav.toString('base64')})).body;
+  await ctx.restart();
+  const current=(await ctx.refresh()).projects.find(p=>p.id===project.id);
+  assert.deepEqual(current.editor,{revision:1,document});
+  const file=await fetch(ctx.url()+'/files/'+project.id+'/'+track.file);
+  assert.equal(file.headers.get('content-type'),'audio/wav');
+  assert.deepEqual(Buffer.from(await file.arrayBuffer()),wav);
+  const zip=await (await fetch(ctx.url()+route+'/export')).arrayBuffer();
+  assert.ok(Buffer.from(zip).includes(Buffer.from('music/'+track.file)));
+  assert.match(await (await fetch(ctx.url()+'/')).text(),/editor-root/);
+  assert.match(await (await fetch(ctx.url()+'/workspace')).text(),/workspace-nav/);
+});

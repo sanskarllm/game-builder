@@ -1,3 +1,7 @@
+# Editor validation — 3 November 2026
+
+All 15 automated tests passed. A separate browser project verified that inspector dialogue survives a reload and that a new screenplay line plays as a connected second scene. The editor persistence test also verifies stale-write rejection, restart, valid audio retrieval and project export. Meta dialogue refinement requires a configured key and was not exercised with a live model.
+
 # Validation — 31 October 2026
 
 Passed:

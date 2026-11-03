@@ -9,8 +9,8 @@ parser.add_argument("destination", type=Path)
 args = parser.parse_args()
 destination = args.destination.resolve()
 destination.parent.mkdir(parents=True, exist_ok=True)
-files = [root / name for name in ["package.json", "server.mjs", "README.md", "VALIDATION.md", ".gitignore", ".gitattributes", "Start-Game-Builder.cmd", "Stop-Game-Builder.cmd"]]
-for name in ["lib", "public", "workers", "scripts", "tests"]:
+files = [root / name for name in ["package.json", "package-lock.json", "server.mjs", "README.md", "VALIDATION.md", ".gitignore", ".gitattributes", "Start-Game-Builder.cmd", "Stop-Game-Builder.cmd"]]
+for name in ["lib", "public", "workers", "scripts", "tests", "editor"]:
     files.extend(p for p in (root / name).rglob("*") if p.is_file() and "__pycache__" not in p.parts and p.suffix != ".pyc")
 with zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_DEFLATED) as archive:
     for file in sorted(files):

@@ -1,12 +1,20 @@
 # Game Builder
 
-A separate studio that starts with a story or chapter, discovers its cast and locations, and turns them into consistent visual designs. It uses Meta Model API for Muse Spark and Muse Image, with local workers for SAM 3, SAM 3D Body and SAM 3D Objects. It does not change or deploy privacybyai.com.
+Game Builder opens directly in a local visual novel editor. Write dialogue in the screenplay, connect choices in the branch map, set the cast and background in the stage inspector, and play from any scene. It uses Meta Model API for Muse Spark and Muse Image, with local workers for SAM 3, SAM 3D Body and SAM 3D Objects. It does not change or deploy privacybyai.com.
 
 ## Start
 
 Double-click **Start-Game-Builder.cmd**, then open http://127.0.0.1:8977. Node.js 22 or newer is required (24.16.0 was used here). No npm installation is needed. **Stop-Game-Builder.cmd** stops the launcher-owned server. Finish or cancel active jobs before stopping. Closing the browser alone leaves the server running.
 
 Alternatively, open a terminal in this folder and run `node server.mjs`. Ctrl+C stops that terminal-owned server.
+
+## Editor
+
+Open the launcher or visit http://127.0.0.1:8977/editor. The stage, branch map, screenplay, scene inspector, pinned-button editor and player are adapted from the original visual novel editor. The project menu switches local games. Edits save automatically, and the Save button flushes changes to disk. Each project has its own revision so an older tab cannot silently overwrite newer work.
+
+Select **Story & assets** for the manuscript, Meta design tools and local SAM workers. Analysed scene summaries and cast references can start an editor project. For an existing graph, **Add scenes from story** adds the outline as a separate run that you can connect on the map. **Open editor** returns to the same project. The project ZIP includes the saved editor graph in project.json.
+
+The compiled editor is included. To rebuild its React components and stylesheet from source, run `npm ci` followed by `npm run build:editor`.
 
 ## Use
 
@@ -20,7 +28,7 @@ Alternatively, open a terminal in this folder and run `node server.mjs`. Ctrl+C 
 
 Re-analysis matches canonical names and aliases and preserves existing images, manual prompts and design profiles. A changed story marks its old breakdown as stale until re-analysed. Existing designs are not automatically deleted when a character disappears from a chapter. A previous design kept during re-analysis should be reviewed against the new story facts.
 
-The scene board is a composition tool; this version does not export a playable branching visual novel. SAM 3D Body exports body geometry, not clothing, hair, textures or a game-ready rig. Meshes can need cleanup, UV/material work, retopology and rigging.
+The scene board exports composed artwork. The editor previews branching gameplay locally. SAM 3D Body exports body geometry, not clothing, hair, textures or a game-ready rig. Meshes can need cleanup, UV/material work, retopology and rigging.
 
 ## Prepared low-memory route
 
@@ -42,7 +50,7 @@ See **public/setup.md** for exact source revisions, model access, setup state an
 
 ## Validation and limits
 
-`npm test` runs 14 tests covering persistence across restart, partial failures, cancellation, Meta request formats, story citations, alias matching, unchanged artwork on re-analysis, scene asset requirements, expression references, local request protection, key encryption and ZIP export. These tests use mock provider responses, not paid generation.
+`npm test` runs 15 tests covering persistence across restart, partial failures, cancellation, Meta request formats, story citations, alias matching, unchanged artwork on re-analysis, scene asset requirements, expression references, local request protection, key encryption and ZIP export. These tests use mock provider responses, not paid generation.
 
 Real Meta image generation and local SAM model inference still require your credentials/model access and have not been claimed as tested. A preflight result is not proof of successful model inference.
 
