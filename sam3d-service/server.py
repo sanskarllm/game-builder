@@ -64,12 +64,14 @@ _gpu = threading.Lock()  # one reconstruction at a time on a single GPU
 
 # ---------------------------------------------------------------- models
 def fast_gpu():
-    """Speed over memory: TF32 tensor cores and cuDNN autotuning."""
+    """Speed over memory: TF32 tensor cores. cuDNN autotuning stays off by
+    default because it re-tunes for every new image size (5-8 s each), and
+    uploads come in all sizes; SAM3D_CUDNN_BENCHMARK=1 turns it on."""
     import torch
 
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
-    torch.backends.cudnn.benchmark = True
+    torch.backends.cudnn.benchmark = os.environ.get("SAM3D_CUDNN_BENCHMARK") == "1"
     torch.set_float32_matmul_precision("high")
 
 
@@ -181,7 +183,12 @@ def preload():
         with _gpu:
             try:
                 (body_model if KINDS[0] == "body" else objects_model)()
-                print(f"Model ready: {KINDS[0]} · {vram()}")
+                if KINDS[0] == "body":
+                    # One throwaway pass so CUDA/cuDNN autotuning happens now,
+                    # not on the user's first click (~28 s -> under 1 s).
+                    dummy = np.full((512, 384, 3), 128, dtype=np.uint8)
+                    _models["body"].process_one_image(dummy, bboxes=np.array([[0, 0, 384, 512]], dtype=np.float32))
+                print(f"Model ready: {KINDS[0]} · {vram()}", flush=True)
             except Exception as e:
                 _models["error"] = f"{type(e).__name__}: {e}"
                 print("Preload failed:", _models["error"])

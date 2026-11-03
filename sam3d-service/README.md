@@ -44,8 +44,14 @@ It listens on `http://127.0.0.1:8000`, which Game Forge uses by default.
 Performance settings (in `start-body.bat`):
 - `SAM3D_BODY_FOV=moge2` — MoGe2 estimates the camera field of view for more
   accurate proportions and pose (set it empty to skip).
-- `SAM3D_PRELOAD=1` — load the model at startup so the first request is fast.
-- TF32 tensor cores and cuDNN autotuning are always on.
+- `SAM3D_PRELOAD=1` — load the model and run one warm-up pass at startup so
+  the first request is fast.
+- TF32 tensor cores are on. cuDNN autotuning is off by default because it
+  re-tunes for every new image size (5–8 s each); set `SAM3D_CUDNN_BENCHMARK=1`
+  if all your images are the same size.
+
+Measured on an RTX 5070 (12 GB): about **0.7–0.8 s per image** at any size,
+**4.5 GB VRAM** at rest and **7.2 GB peak**, mesh of 18,439 vertices.
 
 ## SAM 3D Objects on a cloud GPU (Linux, 32 GB+)
 
