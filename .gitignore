@@ -1,15 +1,4 @@
-data/
 .env
 node_modules/
 __pycache__/
 *.pyc
-.venv/
-.qa-data*/
-.test-runs/
-runtime/
-*.log
-*.dpapi
-.env.*
-*.ckpt
-*.pt
-*.safetensors

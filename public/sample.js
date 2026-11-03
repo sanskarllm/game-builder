@@ -1,0 +1,110 @@
+// Starter project (from the Game Forge reference design) so the editor is
+// never empty. Every piece of it can be regenerated with Meta AI.
+
+export const SAMPLE_GAME = {
+  title: 'The Lantern Keeper',
+  logline: 'A young keeper must relight the harbor lighthouse before the fog swallows the fishing fleet — but a smiling stranger offers an easier way.',
+  characters: [
+    { name: 'Mira', role: 'Lead', desc: 'Young lighthouse keeper, oilskin coat, short dark hair, determined eyes, brass lantern on her belt', color: '#d8a657' },
+    { name: 'Old Tomas', role: 'Mentor', desc: 'Elderly former keeper, white beard, wool cap, knitted sweater, weathered hands', color: '#7aa2f7' },
+    { name: 'The Stranger', role: 'Antagonist', desc: 'Tall figure in a long grey coat and wide hat, pale face, unsettling smile, fog curling around them', color: '#9397ab' },
+    { name: 'Harbor Guard', role: 'Minor', desc: 'Stern guard in navy long coat with brass buttons and a lantern pole', color: '#5aa6a0' },
+  ],
+  backgrounds: [
+    { name: 'Harbor at Dusk', desc: 'Fishing harbor at dusk, wooden piers, moored boats, dark lighthouse on the far cliff' },
+    { name: 'Lighthouse Interior', desc: 'Inside a stone lighthouse, spiral stairs, cold lamp mechanism, warm candle light' },
+    { name: 'Market Street', desc: 'Narrow cobbled market street in a fishing town, stalls closing, lanterns strung overhead' },
+    { name: 'Cliff Path', desc: 'Windswept cliff path at night above the sea, rain, moonlight' },
+    { name: 'Fog Bank', desc: 'Dense grey fog over black water, faint shapes of boats' },
+  ],
+  music: [
+    { name: 'harbor_theme.mp3', mood: 'gentle, wistful, sea shanty feel' },
+    { name: 'lighthouse_hum.mp3', mood: 'calm, mysterious, warm' },
+    { name: 'market_bustle.mp3', mood: 'upbeat bustle' },
+    { name: 'confrontation.mp3', mood: 'tense, dark confrontation' },
+    { name: 'ending_light.mp3', mood: 'hopeful, triumphant sunrise' },
+  ],
+  scenes: [
+    { id: 's1', title: 'Prologue', x: 0, y: 100, bg: 'Harbor at Dusk', music: 'harbor_theme.mp3', transition: 'Fade', chars: [{ name: 'Mira', expr: 'determined', pos: 'C' }],
+      lines: [{ who: 'Narrator', text: 'The last ferry left an hour ago. The lighthouse has been dark for three nights.' }, { who: 'Mira', text: 'If nobody else will light it, I will.' }],
+      choices: [{ text: 'Climb to the lighthouse', to: 's2' }, { text: 'Look for help in town', to: 's3' }] },
+    { id: 's2', title: 'The Lighthouse', x: 200, y: 30, bg: 'Lighthouse Interior', music: 'lighthouse_hum.mp3', transition: 'Dissolve', chars: [{ name: 'Mira', expr: 'neutral', pos: 'L' }, { name: 'Old Tomas', expr: 'tired', pos: 'R' }],
+      lines: [{ who: 'Old Tomas', text: 'You came alone? Then you are braver than the council.' }, { who: 'Mira', text: 'The lamp is cold. What happened to it?' }, { who: 'Old Tomas', text: 'The oil was stolen. The only spare is in the guardhouse up the cliff.' }],
+      choices: [{ text: 'Go up the cliff for the oil', to: 's4' }] },
+    { id: 's3', title: 'Market Street', x: 200, y: 170, bg: 'Market Street', music: 'market_bustle.mp3', transition: 'Fade', chars: [{ name: 'Mira', expr: 'curious', pos: 'L' }, { name: 'The Stranger', expr: 'smiling', pos: 'R' }],
+      lines: [{ who: 'The Stranger', text: 'Looking for light, little keeper? I sell the brightest lanterns on the coast.' }, { who: 'Mira', text: 'I need oil for the lighthouse, not a trinket.' }, { who: 'The Stranger', text: 'Then let us talk about a trade.' }],
+      choices: [{ text: 'Hear the offer', to: 's5' }, { text: 'Walk away, head to the lighthouse', to: 's2' }] },
+    { id: 's4', title: 'Confrontation', x: 400, y: 30, bg: 'Cliff Path', music: 'confrontation.mp3', transition: 'Cut', chars: [{ name: 'Mira', expr: 'angry', pos: 'L' }, { name: 'Harbor Guard', expr: 'stern', pos: 'R' }],
+      lines: [{ who: 'Harbor Guard', text: 'No one goes up the cliff tonight. Orders.' }, { who: 'Mira', text: 'Whose orders? The boats are out there in the fog!' }, { who: 'Harbor Guard', text: '...A man in a grey coat paid well for this post to stay quiet.' }],
+      choices: [{ text: 'Convince the guard', to: 's6' }, { text: 'Turn back into the fog', to: 's7' }] },
+    { id: 's5', title: "The Stranger's Offer", x: 400, y: 170, bg: 'Fog Bank', music: 'confrontation.mp3', transition: 'Dissolve', chars: [{ name: 'The Stranger', expr: 'serious', pos: 'C' }],
+      lines: [{ who: 'The Stranger', text: 'One lantern, one promise. Keep the harbor dark for me after tonight.' }, { who: 'Narrator', text: 'The lantern in his hand burns without oil, without smoke, without warmth.' }],
+      choices: [{ text: 'Refuse and run to the cliff', to: 's4' }, { text: 'Accept the bargain', to: 's8' }] },
+    { id: 's6', title: 'Light Restored', x: 600, y: 0, bg: 'Lighthouse Interior', music: 'ending_light.mp3', transition: 'Fade', chars: [{ name: 'Mira', expr: 'joyful', pos: 'C' }],
+      lines: [{ who: 'Narrator', text: 'The beam swept the water, and one by one the boats turned home.' }, { who: 'Mira', text: 'Three nights dark. Never again.' }], choices: [] },
+    { id: 's7', title: 'Into the Fog', x: 600, y: 100, bg: 'Fog Bank', music: 'harbor_theme.mp3', transition: 'Fade', chars: [{ name: 'Mira', expr: 'sad', pos: 'C' }],
+      lines: [{ who: 'Narrator', text: 'Mira walked until the harbor lights were only a memory.' }], choices: [] },
+    { id: 's8', title: 'The Dark Bargain', x: 600, y: 200, bg: 'Harbor at Dusk', music: 'confrontation.mp3', transition: 'Cut', chars: [{ name: 'Mira', expr: 'hollow', pos: 'L' }, { name: 'The Stranger', expr: 'smiling', pos: 'R' }],
+      lines: [{ who: 'The Stranger', text: 'A fine keeper you will make. Of darkness.' }, { who: 'Narrator', text: 'Out on the water, the fleet drifted toward the rocks.' }], choices: [] },
+  ],
+  assets3d: [],
+};
+
+const P = (shape, size, position, color, rotation = [0, 0, 0], label = '') => ({ shape, size, position, rotation, color, label });
+
+export const SAMPLE_3D = [
+  { name: 'Fisherman House', cat: 'Building', prompt: 'Two-storey timber fisherman house, slate roof, nets drying on the porch.', parts: [
+    P('box', [6, 4.4, 5], [0, 2.2, 0], '#8a6a4a', [0, 0, 0], 'walls'),
+    P('box', [6.4, 0.3, 5.4], [0, 0.15, 0], '#5d5d66', [0, 0, 0], 'foundation'),
+    { ...P('cone', [4.4, 2.6], [0, 5.7, 0], '#3f4a5a', [0, 45, 0], 'roof'), segments: 4 },
+    P('box', [1.1, 2, 0.12], [0, 1, 2.52], '#4a3426', [0, 0, 0], 'door'),
+    P('box', [1, 1, 0.1], [-1.9, 2.8, 2.52], '#cfe3f0', [0, 0, 0], 'window'),
+    P('box', [1, 1, 0.1], [1.9, 2.8, 2.52], '#cfe3f0', [0, 0, 0], 'window'),
+    P('box', [0.8, 2.4, 0.8], [1.8, 6.2, -1], '#6b4f3a', [0, 0, 0], 'chimney'),
+    P('box', [6, 0.15, 1.6], [0, 0.35, 3.3], '#a07a52', [0, 0, 0], 'porch'),
+    P('box', [2.4, 1.4, 0.05], [-1.8, 1.2, 4.05], '#c8b98f', [0, 0, 6], 'drying net'),
+  ] },
+  { name: 'Thatched Hut', cat: 'Building', prompt: 'Round stone hut with a conical thatched roof.', parts: [
+    P('cylinder', [2.2, 2.4, 2.4], [0, 1.2, 0], '#9c9184', [0, 0, 0], 'stone wall'),
+    P('cone', [3, 2.4], [0, 3.6, 0], '#c9a35a', [0, 0, 0], 'thatch'),
+    P('box', [0.9, 1.7, 0.3], [0, 0.85, 2.3], '#5a3f2a', [0, 0, 0], 'door'),
+  ] },
+  { name: 'Lighthouse', cat: 'Building', prompt: 'Striped coastal lighthouse with a glass lamp room.', parts: [
+    P('cylinder', [1.6, 2.4, 3], [0, 1.5, 0], '#e9e9ed', [0, 0, 0], 'base'),
+    P('cylinder', [1.3, 1.6, 3], [0, 4.5, 0], '#c0392b', [0, 0, 0], 'stripe'),
+    P('cylinder', [1.1, 1.3, 3], [0, 7.5, 0], '#e9e9ed', [0, 0, 0], 'tower'),
+    P('cylinder', [1.6, 1.6, 0.2], [0, 9.1, 0], '#2b2b33', [0, 0, 0], 'balcony'),
+    P('cylinder', [0.9, 0.9, 1.4], [0, 9.9, 0], '#ffe9a8', [0, 0, 0], 'lamp room'),
+    P('cone', [1.1, 0.9], [0, 11.05, 0], '#2b2b33', [0, 0, 0], 'cap'),
+  ] },
+  { name: 'Villager', cat: 'Human', prompt: 'Middle-aged villager in wool sweater and boots.', parts: [
+    P('box', [0.5, 0.75, 0.3], [0, 1.15, 0], '#7a5c3d', [0, 0, 0], 'sweater'),
+    P('sphere', [0.14], [0, 1.68, 0], '#e2b796', [0, 0, 0], 'head'),
+    P('cylinder', [0.15, 0.13, 0.05], [0, 1.82, 0], '#5a4632', [0, 0, 0], 'cap'),
+    P('capsule', [0.07, 0.55], [-0.33, 1.15, 0], '#7a5c3d', [0, 0, 8], 'arm'),
+    P('capsule', [0.07, 0.55], [0.33, 1.15, 0], '#7a5c3d', [0, 0, -8], 'arm'),
+    P('capsule', [0.09, 0.6], [-0.13, 0.42, 0], '#3a3f52', [0, 0, 0], 'leg'),
+    P('capsule', [0.09, 0.6], [0.13, 0.42, 0], '#3a3f52', [0, 0, 0], 'leg'),
+    P('box', [0.2, 0.12, 0.3], [-0.13, 0.06, 0.04], '#2b211a', [0, 0, 0], 'boot'),
+    P('box', [0.2, 0.12, 0.3], [0.13, 0.06, 0.04], '#2b211a', [0, 0, 0], 'boot'),
+  ] },
+  { name: 'Lantern', cat: 'Prop', prompt: 'Brass hand lantern with glass panes.', parts: [
+    P('cylinder', [0.12, 0.14, 0.04], [0, 0.02, 0], '#b08a3e', [0, 0, 0], 'base'),
+    P('cylinder', [0.1, 0.1, 0.24], [0, 0.16, 0], '#ffe6a3', [0, 0, 0], 'glass'),
+    P('cone', [0.13, 0.08], [0, 0.32, 0], '#b08a3e', [0, 0, 0], 'top'),
+    P('torus', [0.06, 0.012], [0, 0.4, 0], '#b08a3e', [0, 0, 0], 'handle'),
+  ] },
+  { name: 'Barrel', cat: 'Prop', prompt: 'Oak barrel with iron hoops.', parts: [
+    P('cylinder', [0.3, 0.3, 0.9], [0, 0.45, 0], '#8a5a33', [0, 0, 0], 'staves'),
+    P('cylinder', [0.34, 0.34, 0.6], [0, 0.45, 0], '#9c6a3e', [0, 0, 0], 'belly'),
+    P('torus', [0.33, 0.02], [0, 0.2, 0], '#3a3a40', [90, 0, 0], 'hoop'),
+    P('torus', [0.33, 0.02], [0, 0.7, 0], '#3a3a40', [90, 0, 0], 'hoop'),
+  ] },
+  { name: 'Rowboat', cat: 'Prop', prompt: 'Small wooden rowboat with two oars.', parts: [
+    P('box', [1.2, 0.4, 3.2], [0, 0.3, 0], '#8a6a4a', [0, 0, 0], 'hull'),
+    P('cone', [0.6, 0.8], [0, 0.3, 2], '#8a6a4a', [90, 0, 0], 'bow'),
+    P('box', [1.1, 0.06, 0.3], [0, 0.48, 0], '#6b4f3a', [0, 0, 0], 'bench'),
+    P('cylinder', [0.03, 0.03, 2.2], [0.8, 0.5, 0], '#c9a35a', [0, 0, 70], 'oar'),
+    P('cylinder', [0.03, 0.03, 2.2], [-0.8, 0.5, 0], '#c9a35a', [0, 0, -70], 'oar'),
+  ] },
+];
