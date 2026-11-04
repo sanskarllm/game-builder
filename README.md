@@ -28,11 +28,9 @@ your own images and audio, autosave, undo, and **Export → Playable game
 3. [Run Game Forge](#3-run-game-forge)
 4. [Connect Meta AI (Muse Spark)](#4-connect-meta-ai-muse-spark)
 5. [Set up SAM 3D Body (image → 3D person)](#5-set-up-sam-3d-body-image--3d-person)
-6. [Everyday use](#6-everyday-use)
-7. [Using Game Forge](#7-using-game-forge)
-8. [Troubleshooting](#8-troubleshooting)
-9. [Optional: SAM 3D Objects on a cloud GPU](#9-optional-sam-3d-objects-on-a-cloud-gpu)
-10. [Files and licences](#10-files-and-licences)
+6. [Using Game Forge](#6-using-game-forge)
+7. [Optional: SAM 3D Objects on a cloud GPU](#7-optional-sam-3d-objects-on-a-cloud-gpu)
+8. [Files and licences](#8-files-and-licences)
 
 ---
 
@@ -128,21 +126,7 @@ the project folder.
 4. **Wait for the download.** It fetches the 2.7 GB checkpoint and ends with
    **"All set."** Press any key to close it.
 
-## 6. Everyday use
-
-Each time you want to use Game Forge:
-
-1. Double-click **`start-game-forge.bat`** (Game Forge, port 5173).
-2. If you want image → 3D, also double-click **`sam3d-service\start-body.bat`**
-   (SAM 3D Body, port 8000). The first start takes a minute or two: it loads the
-   model, downloads MoGe2 (~1.3 GB, first time only) and warms up the GPU. Wait
-   for **"Model ready"**.
-3. In Game Forge → **Meta AI** tab → **SAM 3D**, click **Test SAM 3D service**.
-   It should say "Connected · SAM 3D Body".
-
-Leave both windows open while you work; close them (or press Ctrl+C) when done.
-
-## 7. Using Game Forge
+## 6. Using Game Forge
 
 - **Build a game:** click **New game with Meta AI**, describe your idea (or pick
   an example), choose genre, tone and length, then **Build my game**. Leave
@@ -175,27 +159,7 @@ IndexedDB and included in project exports.
 SAM 3D Body gives a **posed human body without clothes, hair or texture**: a
 base to dress in Blender or a stand-in for testing.
 
-## 8. Troubleshooting
-
-| Problem | Fix |
-|---|---|
-| `start-game-forge.bat` says Node.js is not installed | Install the LTS version from https://nodejs.org, then run it again |
-| Page won't open / "address already in use" | Something else is on port 5173. Close the other Game Forge window, or run `set PORT=5174` then `node server.js` and open http://localhost:5174 |
-| Meta AI: **401 Unauthorized** | The API key is missing or wrong. Paste it again in the **Meta AI** tab and click **Test connection** |
-| Meta AI replies slowly | Muse Spark thinks before answering; building a whole game can take a minute |
-| Installer: "No NVIDIA driver found" | SAM 3D Body needs an NVIDIA GPU. Update the driver from https://www.nvidia.com/drivers |
-| Installer: "git is not installed" | Install from https://git-scm.com, then run the installer again |
-| Installer: "PyTorch cannot see a CUDA GPU" | Update your NVIDIA driver (570+), restart the PC, run the installer again |
-| Download fails with **GatedRepoError / 401** | Accept the terms at https://huggingface.co/facebook/sam-3d-body-dinov3 with the account you signed in with, then run the installer again |
-| `hf auth whoami` says "Not logged in" | Run `%USERPROFILE%\sam3d\.venv\Scripts\hf.exe auth login` and finish the sign-in |
-| "**memory allocation … failed**" or the service crashes while loading | Windows is out of *commit* memory (RAM + page file). Fully quit big apps, including ones still running in the system tray (browsers, chat apps). For a lasting fix: Start → "advanced system settings" → Performance **Settings** → **Advanced** → Virtual memory **Change…** → tick **Automatically manage paging file size**, then restart |
-| CUDA "out of memory" | Close games or other GPU apps. To save about 1–2 GB, edit `start-body.bat` and change `set SAM3D_BODY_FOV=moge2` to `set SAM3D_BODY_FOV=` (slightly less accurate) |
-| Game Forge: "Could not reach the SAM 3D service" | `start-body.bat` isn't running, or hasn't printed "Model ready" yet |
-| "SAM 3D Body found no person" | Use an image with one clearly visible person filling most of the picture |
-| The 3D model lies down or faces away | Use **Tilt / Turn / Roll 90°** in the 3D edit panel |
-| First 3D request is slow | Normal right after start; later ones take about a second |
-
-## 9. Optional: SAM 3D Objects on a cloud GPU
+## 7. Optional: SAM 3D Objects on a cloud GPU
 
 SAM 3D Objects reconstructs **any object** (textured mesh) but needs **Linux and
 a 32 GB+ NVIDIA GPU** (A100, L40S, RTX 6000 Ada, H100…), so it runs on a
@@ -203,7 +167,7 @@ rented cloud GPU. Setup steps are in
 [`sam3d-service/README.md`](sam3d-service/README.md#sam-3d-objects-on-a-cloud-gpu-linux-32-gb).
 Then in Game Forge → **Meta AI** → **SAM 3D**, enter the server's URL and token.
 
-## 10. Files and licences
+## 8. Files and licences
 
 | Path | What it is |
 |---|---|
