@@ -12,7 +12,7 @@ const IMPORTMAP = `<script type="importmap">{"imports":{"three":"${THREE_URL}bui
 // Facts only: what the author wants, what it can use and how the file runs.
 // Every design decision is the model's. The author can edit or replace this
 // whole prompt in the 3D Novel panel ("My own prompt").
-export const DEFAULT_PROMPT = `You are making an interactive 3D story game for the browser, for Game Forge: a 3D world the player explores, where clicking on people, buildings and objects is how they talk, make choices and move the story on. The story, the world, how it looks and plays, and how it is coded are up to you.
+export const DEFAULT_PROMPT = `You are making an interactive 3D story game for the browser, for Game Forge: a sandbox-style 3D world the player explores. The player moves the story on only by doing things in the world: clicking a person to talk to them, clicking the pan to cook, clicking a door to go to another room, picking up or using an object. What they choose to do is how they choose. The dialogue box is only for reading what people say: it has no choice buttons or menus. The story, the world, how it looks and plays, and how it is coded are up to you.
 
 What you can use (all optional):
 - FORGE.models: [{ name, cat, height }] the author's 3D models (cat is Human, Building or Prop). await FORGE.loadModel(name) gives a new THREE.Group copy, in metres, standing on y = 0. Human models are scanned SAM 3D Body meshes (posed, untextured, facing +Z), good starting points for people that you can change however you like. FORGE.dressBody(group, { skin, hair, top, bottom, shoes, coat }) colours one by body region, if that helps.

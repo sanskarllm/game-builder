@@ -761,7 +761,7 @@ function CodeView(p) {
       ${!code && !coding && html`<div class="busy-veil" style="background:transparent"><div class="stack" style="align-items:center;gap:10px;max-width:480px;text-align:center">
         <i class="ph ph-cube-focus" style="font-size:34px;color:var(--color-accent)"></i>
         <span style="font-size:15px;font-weight:500">An interactive 3D story you click through</span>
-        <span class="muted" style="font-size:12px">Muse Wonder builds a 3D world to explore. Click on people, buildings and objects to talk, choose and move the story on. Describe your idea on the right; your 3D models, including SAM 3D Body people, are there for it to use.</span>
+        <span class="muted" style="font-size:12px">Muse Wonder builds a 3D world to explore, sandbox style. The dialogue box only shows what people say; you move the story on by doing things: click a person to talk, the pan to cook, a door to change room. Describe your idea on the right; your 3D models, including SAM 3D Body people, are there for it to use.</span>
         ${!aiReady && html`<span style="font-size:12px;color:var(--color-danger)">Add your Meta AI key in the Meta AI tab first.</span>`}
       </div></div>`}
       ${code && !page && !err && !coding && html`<div class="busy-veil"><i class="ph ph-spinner spin"></i> Loading the 3D novel…</div>`}
@@ -777,10 +777,10 @@ function CodeView(p) {
 // Optional starting points for the idea box: clicking one adds its text, which
 // the author can edit. Nothing is sent unless they pick one.
 const NOVEL_STARTERS = [
-  ['Isometric room diorama', 'Show each location as an isometric cut-away room, like a dollhouse seen from above at an angle: the floor and two back walls, with no ceiling or front walls, so the whole room is visible at once. Fill it with detailed furniture and props (shelves, posters, lamps, plants, beds, sofas, desks, tables). The characters stand and sit in the room. The player clicks people to talk and objects to look at, and the choices in those conversations move the story on to the next room or scene.'],
-  ['Cozy café or shop', 'Set it in an isometric cut-away café or shop with a counter, tables and chairs, shelves of goods, hanging lights, plants and framed pictures, in warm evening light. Customers and staff each have a story; click them to talk, and what you learn opens new choices.'],
-  ['Investigation room', 'Set it in an isometric cut-away room full of clues: an evidence board with notes and string, lockers, a desk, a bed, a sofa and scattered belongings. Click objects to collect clues and click people to question them; the clues you hold change what you can say and how the story ends.'],
-  ['Rooms to explore', 'Make several isometric cut-away rooms joined by doors. Click a door to move to the next room. Each room has people to talk to and objects to use, and the story moves on as you go room to room.'],
+  ['Isometric room diorama', 'Show each location as an isometric cut-away room, like a dollhouse seen from above at an angle: the floor and two back walls, with no ceiling or front walls, so the whole room is visible at once. Fill it with detailed furniture and props (shelves, posters, lamps, plants, beds, sofas, desks, tables). The characters stand and sit in the room. The player clicks people to talk and clicks objects to use them (the stove to cook, a door to leave, a drawer to search), and those actions move the story on to the next room or scene.'],
+  ['Cozy café or shop', 'Set it in an isometric cut-away café or shop with a counter, a stove and pans, tables and chairs, shelves of goods, hanging lights, plants and framed pictures, in warm evening light. Customers and staff each have a story; click them to hear it, and serve, cook or fetch things by clicking the counter, the pan or the shelves to move it on.'],
+  ['Investigation room', 'Set it in an isometric cut-away room full of clues: an evidence board with notes and string, lockers, a desk, a bed, a sofa and scattered belongings. Click objects to search them and collect clues, click people to question them; what you find and where you take it decides how the story ends.'],
+  ['Rooms to explore', 'Make several isometric cut-away rooms joined by doors. Click a door to move to the next room. Each room has people to talk to and objects to use, and using the right things in the right rooms moves the story on.'],
 ];
 function EditCode(p) {
   const { game, coding, codeGame, settings, setSettings, prov, setDialog } = p;
@@ -812,7 +812,7 @@ function EditCode(p) {
   return html`
     <div class="stack" style="gap:4px">
       <div class="row"><span class="kicker accent" style="flex:1">3D novel</span><span class="tag tag-meta"><i class="ph ph-sparkle"></i>${model}</span></div>
-      <span style="font-size:12px;color:var(--color-neutral-300)">A 3D world you explore, where clicking on people, buildings and objects moves the story on. Its story is its own.</span>
+      <span style="font-size:12px;color:var(--color-neutral-300)">A sandbox-style 3D world: the dialogue box only shows what people say, and you move the story on by clicking things (a person to talk, the pan to cook, a door to change room). Its story is its own.</span>
     </div>
     ${has && html`<div class="stack" style="gap:6px">
       <span class="label">Change it</span>

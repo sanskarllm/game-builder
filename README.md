@@ -2,16 +2,17 @@
 
 Game Forge is a visual novel maker with two modes. **2D Novel** turns a
 one-line idea into a branching story with 2D art, and lets you edit everything
-with an AI copilot. **3D Novel** is an interactive 3D story game: you explore a
-3D world and click on people, buildings and objects to talk, choose and move
-the story on. **Every AI feature runs on Meta AI models**: **Muse Spark** (Meta
+with an AI copilot. **3D Novel** is a sandbox-style 3D story game: the dialogue
+box only shows what people say, and you move the story on by doing things in
+the world, like clicking a person to talk, the pan to cook or a door to go to
+another room. **Every AI feature runs on Meta AI models**: **Muse Spark** (Meta
 Model API) for writing, art, music and 3D design, **Muse Wonder** to build the
 3D novel, and Meta's **SAM 3D Body** to turn a picture of a person into a 3D
 body.
 
 | Feature | What Meta AI does |
 |---|---|
-| **3D Novel** | **Muse Wonder** makes an interactive 3D story game: a world to explore where clicking on people, buildings and objects moves the story on. It decides the story, world and design itself, and can use your 3D models (SAM 3D Body people as the starting point for its characters). Play it in the app, change it by asking, save it as one `.html` |
+| **3D Novel** | **Muse Wonder** makes a sandbox-style 3D story game: the dialogue box is only for reading, and you progress by clicking things in the world (a person to talk, the pan to cook, a door to change room). It decides the story, world and design itself, and can use your 3D models (SAM 3D Body people as the starting point for its characters). Play it in the app, change it by asking, save it as one `.html` |
 | **New game with Meta AI** | Writes the title, characters, locations, soundtrack and every branching scene (dialogue + choices) |
 | **Forge Assistant** | Chat copilot that reviews your story, brainstorms, and *edits the project directly*. Every change can be undone |
 | **Write this scene** | Rewrites one scene's dialogue, cast and choices from your direction |
@@ -180,9 +181,10 @@ the project folder.
   3D models** to hand it your models: SAM 3D Body people are its starting point
   for characters (**Add a person from an image** makes one). Tick **Share my 2D
   novel as inspiration** if you like; the 3D story does not have to follow it.
-  Click **Build with Meta AI**: in a few minutes Muse Wonder builds a 3D world
-  where you click on people, buildings and objects to talk, choose and move the
-  story on. Click inside to play. To change it, type what you want under
+  Click **Build with Meta AI**: in a few minutes Muse Wonder builds a
+  sandbox-style 3D world. The dialogue box only shows what people say; there
+  are no choice buttons. You move the story on by doing things: click a person
+  to talk, the pan to cook, a door to go to another room. Click inside to play. To change it, type what you want under
   **Change it** and click **Apply with Meta AI**. If it shows an error, **Fix
   with Meta AI** sends the error back. **Undo** goes back a version. **Save 3D
   novel (.html)** saves one file that runs in any browser, with your models
