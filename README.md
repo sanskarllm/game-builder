@@ -151,11 +151,20 @@ the project folder.
   **cube** icon. Set the height in metres, rotate it if it lies down, then
   **Export .glb**.
 - **Play:** **Play build** opens the full-screen player.
+- **Save your project:** click **Save** (or press **Ctrl+S**). In Chrome or Edge
+  the first save asks where to put the `.gameforge.json` file, and every save
+  after that updates the same file; other browsers save a copy to Downloads.
+  **Export → Save project as…** (Ctrl+Shift+S) picks a new file, and
+  **Export → Open project…** (Ctrl+O) opens one. The top bar shows "Saved" or
+  "Unsaved changes".
 - **Share:** **Export → Playable game (.html)** saves one file that runs in any
-  browser. **Export → Project file (.json)** saves everything for later;
-  **Import project…** loads it back.
+  browser.
+- **Saving in the game:** players can open **☰ Menu** while playing to
+  **Save game** or **Load game** in three slots. The game also autosaves, so the
+  title screen offers **Continue**. This works in **Play build** and in exported
+  `.html` games; saves stay in the player's browser.
 
-Your work autosaves in the browser. 3D meshes are stored in the browser's
+Your work also autosaves in the browser. 3D meshes are stored in the browser's
 IndexedDB and included in project exports.
 
 SAM 3D Body gives a **posed human body without clothes, hair or texture**: a

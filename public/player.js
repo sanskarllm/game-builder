@@ -27,6 +27,19 @@
 .fp-btn{padding:10px 22px;border-radius:8px;border:1px solid #9184d9;background:transparent;color:#b5abfc;font:inherit;font-size:15px;cursor:pointer}
 .fp-btn:hover{background:rgba(145,132,217,.18)}
 .fp-small{font-size:11px;color:#9397ab}
+.fp-row{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+.fp-menu-btn{position:absolute;top:10px;left:12px;z-index:3;font:inherit;font-size:12px;color:#e9e9ed;padding:5px 10px;border-radius:6px;border:1px solid rgba(233,233,237,.2);background:rgba(16,18,30,.75);cursor:pointer}
+.fp-menu-btn:hover{border-color:#9184d9}
+.fp-panel-wrap{position:absolute;inset:0;z-index:10;display:grid;place-items:center;background:rgba(5,6,12,.6);backdrop-filter:blur(3px);animation:fp-in .2s ease}
+.fp-panel{width:min(380px,86%);display:flex;flex-direction:column;gap:8px;padding:20px;border-radius:12px;background:#1b1d2b;box-shadow:0 0 0 1px rgba(233,233,237,.16),0 20px 50px rgba(0,0,0,.6)}
+.fp-panel h2{margin:0 0 4px;font-size:18px;font-weight:600}
+.fp-panel .fp-btn{width:100%}
+.fp-quiet{border-color:rgba(233,233,237,.2);color:#cfd3e5}
+.fp-slot{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;padding:10px 12px;border-radius:8px;border:1px solid rgba(233,233,237,.16);background:rgba(255,255,255,.03);color:#e9e9ed;font:inherit;text-align:left;cursor:pointer}
+.fp-slot span{font-size:12px;color:#9397ab}
+.fp-slot:hover:not(:disabled){border-color:#9184d9;background:rgba(145,132,217,.12)}
+.fp-slot:disabled{opacity:.45;cursor:default}
+.fp-note{font-size:12px;color:#b5abfc}
 .fp-fade{animation:fp-in .6s ease}.fp-dissolve{animation:fp-in 1.1s ease}.fp-slide-left{animation:fp-slide .5s ease}
 @keyframes fp-in{from{opacity:0}to{opacity:1}}
 @keyframes fp-up{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
@@ -173,7 +186,8 @@
   };
 
   // ---------- scene renderer ----------
-  // opts: { scene, line, onScene(id), onLine(i), music:bool, showTags:bool, onEnd() }
+  // opts: { scene, line, onScene(id), onLine(i), music:bool, showTags:bool, onEnd(),
+  //         onChange({scene, line}) after every step, menu: show the Menu button, onMenu() }
   function mount(el, game, opts) {
     injectCss();
     opts = opts || {};
@@ -195,6 +209,7 @@
         <img class="fp-bg" alt="" src="${bgUrl(game, scene.bg)}">
         <div class="fp-chars">${(scene.chars || []).slice(0, 4).map(c => `<div class="fp-char ${L.who && L.who !== c.name && L.who !== 'Narrator' ? 'dim' : ''}" style="left:${pos[c.pos] || '50%'};${EXPR_FILTER[String(c.expr || '').toLowerCase()] ? 'filter:' + EXPR_FILTER[String(c.expr).toLowerCase()] : ''}"><img alt="${esc(c.name)}" src="${charUrl(game, c.name)}"></div>`).join('')}</div>
         ${opts.showTags ? `<div class="fp-tag">BG · ${esc(scene.bg || '—')}</div>` : ''}
+        ${opts.menu ? `<button class="fp-menu-btn" data-act="menu" title="Save, load or quit">☰ Menu</button>` : ''}
         ${scene.music ? `<button class="fp-music" data-act="mute" title="Toggle music">${music.muted ? '🔇' : '♪'} ${esc(scene.music)}</button>` : ''}
         ${atEnd && choices.length ? `<div class="fp-choices">${choices.map((c, i) => `<button class="fp-choice" data-choice="${i}" style="animation-delay:${i * 60}ms">${esc(c.text)}</button>`).join('')}</div>` : ''}
         <div class="fp-box" data-act="next">
@@ -205,6 +220,7 @@
       </div>`;
       first = false;
       if (opts.music) music.play(game, scene.music);
+      if (opts.onChange) opts.onChange({ scene: scene.id, line });
     }
     function onClick(e) {
       const ch = e.target.closest('[data-choice]');
@@ -218,23 +234,89 @@
       const act = e.target.closest('[data-act]');
       if (!act) return;
       if (act.dataset.act === 'mute') { music.toggleMute(game, scene.music); draw(); return; }
+      if (act.dataset.act === 'menu') { if (opts.onMenu) opts.onMenu(); return; }
       const lines = scene.lines && scene.lines.length ? scene.lines : [1];
       if (line < lines.length - 1) { line++; if (opts.onLine) opts.onLine(line); draw(); }
       else if (!(scene.choices || []).length && opts.onEnd) opts.onEnd();
     }
     el.addEventListener('click', onClick);
     draw();
-    return { destroy() { el.removeEventListener('click', onClick); } };
+    return { destroy() { el.removeEventListener('click', onClick); }, state: () => ({ scene: scene.id, line }) };
   }
 
-  // Full standalone game: title screen → scenes → ending → restart.
+  // ---------- save slots (player progress) ----------
+  // Saved in the browser's localStorage, one set of slots per game.
+  const SLOTS = ['1', '2', '3'];
+  function saves(game) {
+    const key = 'forge-save:' + hash((game.title || '') + '|' + (game.scenes || []).map(s => s.id).join(','));
+    const read = () => { try { return JSON.parse(localStorage.getItem(key)) || {}; } catch (e) { return {}; } };
+    return {
+      all: read,
+      get: slot => read()[slot] || null,
+      put(slot, st) {
+        const all = read(); const sc = (game.scenes || []).find(s => s.id === st.scene) || {};
+        all[slot] = { scene: st.scene, line: st.line, title: sc.title || '', at: Date.now() };
+        try { localStorage.setItem(key, JSON.stringify(all)); return true; } catch (e) { return false; }
+      },
+    };
+  }
+  const when = t => { const d = new Date(t); return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }); };
+
+  // Full standalone game: title screen → scenes → ending → restart,
+  // with autosave, Continue, and three save slots.
   function boot(el, game) {
     injectCss();
     let ctl = null;
+    const store = saves(game);
+    const resumable = s => s && (game.scenes || []).some(x => x.id === s.scene);
+
+    function play(from) {
+      if (ctl) ctl.destroy();
+      ctl = mount(el, game, {
+        scene: from && from.scene, line: from ? from.line : 0, music: true, menu: true, onEnd: ending, onMenu: menu,
+        onChange: st => store.put('auto', st),
+      });
+    }
     function title() {
-      if (ctl) ctl.destroy(); music.stop();
-      el.innerHTML = `<div class="fp-stage"><img class="fp-bg" alt="" src="${bgUrl(game, (game.scenes[0] || {}).bg)}"><div class="fp-title"><h1>${esc(game.title || 'Untitled')}</h1><p>${esc(game.logline || '')}</p><button class="fp-btn" data-start>Start</button><span class="fp-small">Made with Game Forge · written with Meta AI</span></div></div>`;
-      el.querySelector('[data-start]').onclick = () => { ctl = mount(el, game, { music: true, onEnd: ending }); };
+      if (ctl) ctl.destroy(); ctl = null; music.stop();
+      const auto = store.get('auto'); const any = SLOTS.some(s => resumable(store.get(s)));
+      el.innerHTML = `<div class="fp-stage"><img class="fp-bg" alt="" src="${bgUrl(game, (game.scenes[0] || {}).bg)}"><div class="fp-title"><h1>${esc(game.title || 'Untitled')}</h1><p>${esc(game.logline || '')}</p>
+        <div class="fp-row">${resumable(auto) ? `<button class="fp-btn" data-continue>Continue · ${esc(auto.title)}</button>` : ''}<button class="fp-btn" data-start>${resumable(auto) ? 'New game' : 'Start'}</button>${any ? '<button class="fp-btn" data-load>Load</button>' : ''}</div>
+        <span class="fp-small">Made with Game Forge · written with Meta AI</span></div></div>`;
+      el.querySelector('[data-start]').onclick = () => play(null);
+      const c = el.querySelector('[data-continue]'); if (c) c.onclick = () => play(auto);
+      const l = el.querySelector('[data-load]'); if (l) l.onclick = () => panel('load', true);
+    }
+    function menu() { panel('menu', false); }
+    // mode: 'menu' | 'save' | 'load'. fromTitle: Back returns to the title screen.
+    function panel(mode, fromTitle) {
+      const old = el.querySelector('.fp-panel-wrap'); if (old) old.remove();
+      const all = store.all();
+      const slotBtn = s => { const v = all[s]; const ok = mode === 'save' || resumable(v);
+        return `<button class="fp-slot" data-slot="${s}" ${ok ? '' : 'disabled'}><b>Slot ${s}</b><span>${v ? esc(v.title) + ' · ' + when(v.at) : 'Empty'}</span></button>`; };
+      const body = mode === 'menu'
+        ? `<button class="fp-btn" data-p="save">Save game</button><button class="fp-btn" data-p="load">Load game</button><button class="fp-btn" data-p="title">Title screen</button><button class="fp-btn fp-quiet" data-p="close">Back to game</button>`
+        : SLOTS.map(slotBtn).join('') + `<button class="fp-btn fp-quiet" data-p="${fromTitle ? 'title' : 'menu'}">Back</button>`;
+      const wrap = document.createElement('div');
+      wrap.className = 'fp-panel-wrap';
+      wrap.innerHTML = `<div class="fp-panel"><h2>${{ menu: 'Menu', save: 'Save game', load: 'Load game' }[mode]}</h2>${body}<div class="fp-note" hidden></div></div>`;
+      wrap.addEventListener('click', e => {
+        e.stopPropagation();
+        const p = e.target.closest('[data-p]'), s = e.target.closest('[data-slot]');
+        if (p) {
+          const a = p.dataset.p;
+          if (a === 'close') wrap.remove();
+          else if (a === 'title') title();
+          else panel(a === 'menu' ? 'menu' : a, fromTitle);
+        } else if (s && !s.disabled) {
+          if (mode === 'save') {
+            const ok = ctl && store.put(s.dataset.slot, ctl.state());
+            panel('save', fromTitle);
+            const n = el.querySelector('.fp-note'); n.hidden = false; n.textContent = ok ? 'Saved to slot ' + s.dataset.slot + '.' : 'Could not save — browser storage is blocked.';
+          } else play(store.get(s.dataset.slot));
+        }
+      });
+      (el.querySelector('.fp-stage') || el).appendChild(wrap);
     }
     function ending() {
       if (ctl) ctl.destroy(); ctl = null;

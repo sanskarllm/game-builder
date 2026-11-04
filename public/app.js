@@ -208,13 +208,55 @@ function App() {
     download(slug(game.title) + '.html', new Blob([page], { type: 'text/html' }));
     notify('Exported a playable game: ' + slug(game.title) + '.html');
   }
-  function exportProject() { setMenu(false); download(slug(game.title) + '.gameforge.json', new Blob([JSON.stringify(game, null, 1)], { type: 'application/json' })); }
+  // ---- project file: Save (Ctrl+S), Save as (Ctrl+Shift+S), Open (Ctrl+O) ----
+  // In Chrome/Edge the first save asks where to put the file and later saves
+  // write straight to it. Other browsers save a copy to Downloads each time.
+  const canWriteFiles = 'showSaveFilePicker' in window;
+  const fileHandle = useRef(null);
+  const savedGame = useRef(null);
+  const [saveInfo, setSaveInfo] = useState(null); // { name, at }
+  const dirty = savedGame.current !== game;
+  const PROJECT_TYPES = [{ description: 'Game Forge project', accept: { 'application/json': ['.json'] } }];
+  function markSaved(name, g) { savedGame.current = g; setSaveInfo({ name, at: Date.now() }); }
+  async function saveProject(as) {
+    setMenu(false);
+    const g = gameRef.current, data = JSON.stringify(g, null, 1), name = slug(g.title) + '.gameforge.json';
+    if (!canWriteFiles) { download(name, new Blob([data], { type: 'application/json' })); markSaved(name, g); notify('Saved ' + name + ' to your Downloads'); return; }
+    try {
+      const h = (!as && fileHandle.current) || await window.showSaveFilePicker({ suggestedName: name, types: PROJECT_TYPES });
+      const w = await h.createWritable(); await w.write(data); await w.close();
+      fileHandle.current = h; markSaved(h.name, g); notify('Saved ' + h.name);
+    } catch (e) { if (e.name !== 'AbortError') notify('Could not save: ' + e.message, true); }
+  }
+  function parseProject(text) {
+    let g; try { g = AI.normalizeGame(JSON.parse(text)); } catch (e) { throw new Error('That file is not a Game Forge project.'); }
+    if (!g.scenes.length) throw new Error('That file is not a Game Forge project.');
+    if (!g.assets3d.length) g.assets3d = clone(SAMPLE_3D);
+    return g;
+  }
+  function loadProject(g, handle, name) { snapshot(); setGame(g); setSel(g.scenes[0].id); fileHandle.current = handle; markSaved(name, g); notify('Opened ' + name); }
+  async function openProject() {
+    setMenu(false);
+    if (!('showOpenFilePicker' in window)) return importRef.current.click();
+    try { const [h] = await window.showOpenFilePicker({ types: PROJECT_TYPES }); loadProject(parseProject(await (await h.getFile()).text()), h, h.name); }
+    catch (e) { if (e.name !== 'AbortError') notify(e.message, true); }
+  }
   const importRef = useRef();
   async function importProject(e) {
     const f = e.target.files[0]; e.target.value = ''; if (!f) return;
-    try { const g = AI.normalizeGame(JSON.parse(await f.text())); if (!g.assets3d.length) g.assets3d = clone(SAMPLE_3D); snapshot(); setGame(g); setSel(g.scenes[0].id); notify('Imported ' + g.title); }
-    catch (err) { notify('That file is not a Game Forge project.', true); }
+    try { loadProject(parseProject(await f.text()), null, f.name); } catch (err) { notify(err.message, true); }
   }
+  const keys = useRef(); keys.current = { saveProject, openProject };
+  useEffect(() => {
+    const k = e => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const key = e.key.toLowerCase();
+      if (key === 's') { e.preventDefault(); keys.current.saveProject(e.shiftKey); }
+      else if (key === 'o') { e.preventDefault(); keys.current.openProject(); }
+    };
+    window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k);
+  }, []);
+  const saveLabel = !saveInfo ? 'Not saved to a file yet' : dirty ? 'Unsaved changes' : 'Saved ' + new Date(saveInfo.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
   const cur = game.scenes.find(s => s.id === sel) || game.scenes[0];
   const ctx = { game, setGame, update, updScene, snapshot, cur, sel, setSel, mode, setMode, tab, setTab, right, setRight, settings, setSettings, server, jobs, messages, setMessages, setDialog, notify, aiReady, ensureAI, runJob, paintBg, paintChar, compose, make3d, makeFromImage, sam3dReady, sel3d, setSel3d, style3d, setStyle3d, undo, undoCount, building };
@@ -227,6 +269,7 @@ function App() {
       <div class="vsep"></div>
       <input class="title-input" value=${game.title} onFocus=${snapshot} onInput=${e => update(g => { g.title = e.target.value; return g; })} title="Game title" />
       <span class="tag tag-neutral">${MODES.find(m => m[0] === mode)[1]}</span>
+      <span class=${'save-state' + (saveInfo && !dirty ? ' clean' : '')} title=${saveInfo ? saveInfo.name : 'Your work also autosaves in this browser'}>${saveLabel}</span>
       <div style="flex:1"></div>
       <button class="status" onClick=${() => setRight('settings')} title="Meta AI connection">
         <span class=${'dot ' + (busyJobs ? 'busy' : aiReady ? 'on' : '')}></span>
@@ -235,12 +278,13 @@ function App() {
       <button class="btn btn-secondary btn-icon" title="Undo" disabled=${!undoCount} onClick=${undo}><i class="ph ph-arrow-u-up-left"></i></button>
       <button class="btn btn-solid" onClick=${() => setDialog('new')}><i class="ph ph-magic-wand"></i>New game with Meta AI</button>
       <button class="btn btn-secondary" onClick=${() => setDialog('play')}><i class="ph ph-play"></i>Play build</button>
+      <button class="btn btn-secondary" onClick=${() => saveProject(false)} title=${'Save project (Ctrl+S)' + (saveInfo ? ' · ' + saveInfo.name : '')}><i class="ph ph-floppy-disk"></i>Save</button>
       <div style="position:relative">
         <button class="btn btn-primary" onClick=${() => setMenu(!menu)}><i class="ph ph-export"></i>Export<i class="ph ph-caret-down"></i></button>
         ${menu && html`<div class="menu" onMouseLeave=${() => setMenu(false)}>
           <button onClick=${exportGame}><i class="ph ph-globe"></i>Playable game (.html)</button>
-          <button onClick=${exportProject}><i class="ph ph-file-arrow-down"></i>Project file (.json)</button>
-          <button onClick=${() => { setMenu(false); importRef.current.click(); }}><i class="ph ph-file-arrow-up"></i>Import project…</button>
+          <button onClick=${() => saveProject(true)}><i class="ph ph-floppy-disk"></i>Save project as… <span class="kbd">Ctrl+Shift+S</span></button>
+          <button onClick=${openProject}><i class="ph ph-folder-open"></i>Open project… <span class="kbd">Ctrl+O</span></button>
           <button onClick=${() => { setMenu(false); if (confirm('Replace the current project with the sample game?')) { snapshot(); setGame({ ...clone(SAMPLE_GAME), assets3d: clone(SAMPLE_3D) }); setSel('s1'); } }}><i class="ph ph-arrow-counter-clockwise"></i>Reset to sample game</button>
         </div>`}
         <input type="file" accept=".json,application/json" ref=${importRef} onChange=${importProject} style="display:none" />
