@@ -122,6 +122,27 @@ async function handleChat(req, res) {
   }
 }
 
+// 2D novel artwork uses Meta's image endpoint independently of the chat model.
+async function handleImage(req, res) {
+  let body;
+  try { body = JSON.parse(await readBody(req)); } catch { return send(res, 400, { error: 'Invalid JSON body' }); }
+  if (typeof body?.prompt !== 'string' || !body.prompt.trim()) return send(res, 400, { error: 'An image prompt is required.' });
+  const key = body.apiKey || (ENV_BASE === DEFAULT_BASE && ENV_KEY);
+  if (!key) return send(res, 401, { error: 'Muse Image needs a Meta Model API key. Select Meta Model API in settings and add your key, or configure the Meta endpoint and MODEL_API_KEY on the server.' });
+  try {
+    const response = await fetch(DEFAULT_BASE + '/images/generations', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
+      body: JSON.stringify({ model: 'muse-image-1.0', prompt: body.prompt, size: body.size, response_format: 'b64_json', output_format: 'webp' }),
+      signal: AbortSignal.timeout(180000),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) return send(res, response.status, { error: result.error?.message || 'Muse Image returned HTTP ' + response.status });
+    const bytes = result.data?.[0]?.b64_json;
+    if (typeof bytes !== 'string' || !bytes) return send(res, 502, { error: 'Muse Image returned no image.' });
+    send(res, 200, { image: 'data:image/webp;base64,' + bytes });
+  } catch (error) { send(res, 502, { error: 'Muse Image request failed: ' + error.message }); }
+}
+
 // Lists the models this key can use (GET {base}/models), e.g. every Muse model
 // on Meta Model API. Body: { baseUrl?, apiKey? }
 async function handleModels(req, res) {
@@ -308,6 +329,7 @@ http.createServer(async (req, res) => {
   }
   if (req.method === 'POST' && req.url.startsWith('/api/chat')) return handleChat(req, res);
   if (req.method === 'POST' && req.url.startsWith('/api/models')) return handleModels(req, res);
+  if (req.method === 'POST' && req.url === '/api/image') return handleImage(req, res);
   if (req.url.startsWith('/api/sam3d/engines')) return handleEngines(req, res);
   if (req.method === 'POST' && req.url.startsWith('/api/sam3d')) return handleSam3d(req, res);
   if (req.method === 'GET') return serveStatic(req, res);
