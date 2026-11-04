@@ -57,6 +57,9 @@ OBJECTS_REPO = os.environ.get("SAM3D_OBJECTS_REPO", "" if not os.path.exists("ch
 KINDS = (["body"] if BODY_REPO else []) + (["objects"] if OBJECTS_REPO else [])
 if FAKE and not KINDS:
     KINDS = ["body", "objects"]
+# SAM3D_ONLY=body|objects runs just one model (Game Forge's Start buttons use this).
+if os.environ.get("SAM3D_ONLY"):
+    KINDS = [k for k in KINDS if k == os.environ["SAM3D_ONLY"]]
 
 app = FastAPI(title="SAM 3D for Game Forge")
 _models = {}

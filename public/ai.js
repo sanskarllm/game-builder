@@ -255,6 +255,19 @@ async function sam3dCall(payload) {
 }
 export async function sam3dHealth() { return (await sam3dCall({ action: 'health' })).json(); }
 
+// Start / stop SAM 3D Body (port 8000) and SAM 3D Objects (port 8001) on this PC.
+export async function samEngines() {
+  const r = await fetch('/api/sam3d/engines', { cache: 'no-store' });
+  if (!r.ok) throw new Error('Game Forge server answered ' + r.status);
+  return (await r.json()).engines;
+}
+export async function samEngine(kind, action) {
+  const r = await fetch('/api/sam3d/engines', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, action }) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || 'HTTP ' + r.status);
+  return d;
+}
+
 // kind: 'body' (SAM 3D Body — people) or 'objects' (SAM 3D Objects — anything)
 export async function sam3d({ image, mask, textured, seed, kind }) {
   const r = await sam3dCall({ action: 'reconstruct', kind, image, mask: mask || undefined, textured: !!textured, seed });

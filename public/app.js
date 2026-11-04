@@ -460,7 +460,7 @@ function Sidebar(p) {
 function Main(p) {
   const { game, mode, cur, building } = p;
   const isPlay = mode === 'play';
-  if (mode === '3d') return html`<main class="main" style="grid-template-rows:minmax(0,1fr)"><${Asset3DView} ...${p} /></main>`;
+  if (mode === '3d') return html`<main class="main" style="grid-template-rows:minmax(0,1fr);overflow:auto"><${Asset3DView} ...${p} /></main>`;
   const maxW = isPlay ? 'calc((100vh - 50px - 150px - 90px) * 16 / 9)' : 'calc(52vh * 16 / 9)';
   return html`<main class=${'main' + (isPlay ? ' play' : '')}>
     <section style="min-width:0;min-height:0;padding:var(--space-6) var(--space-6) var(--space-4);display:flex;flex-direction:column;gap:var(--space-3)">
@@ -549,7 +549,8 @@ function SceneChart({ game, update, sel, setSel, setRight, snapshot }) {
 }
 
 // ======================================================================
-function Asset3DView({ game, sel3d, style3d }) {
+function Asset3DView(p) {
+  const { game, sel3d, style3d } = p;
   const canvas = useRef(); const viewer = useRef(null);
   const [ready, setReady] = useState(false); const [err, setErr] = useState(null); const [tris, setTris] = useState(0);
   const asset = game.assets3d.find(a => a.name === sel3d) || game.assets3d[0];
@@ -564,7 +565,8 @@ function Asset3DView({ game, sel3d, style3d }) {
   }, [ready, asset, style3d]);
   const sam = asset && asset.source === 'sam3d';
   window.__gfViewer = viewer;
-  return html`<section style="min-width:0;padding:var(--space-6);display:flex;flex-direction:column;gap:var(--space-3)">
+  return html`<div class="view3d">
+  <section style="min-width:0;display:flex;flex-direction:column;gap:var(--space-3)">
     <div class="row" style="gap:var(--space-3)">
       <span class="kicker accent">Asset preview</span><span style="font-size:15px;font-weight:500">${asset ? asset.name : 'No assets'}</span>
       <div style="flex:1"></div><span style="font-size:11px" class="muted">Drag to orbit · scroll to zoom</span>
@@ -581,7 +583,88 @@ function Asset3DView({ game, sel3d, style3d }) {
       </div>
     </div>
     <div class="card" style="font-size:12px;color:var(--color-neutral-300)"><i class="ph ph-info" style="color:var(--color-accent)"></i> Two Meta AI ways to make 3D: <b>Describe</b> it and Muse Spark builds it from 3D primitives, or start <b>From an image</b> and Meta's SAM 3D Body (people) or SAM 3D Objects (anything) reconstructs a mesh. Export any model as .glb for Unity, Godot, Unreal or Blender.</div>
-  </section>`;
+  </section>
+  <${SamEngines} setRight=${p.setRight} setDialog=${p.setDialog} notify=${p.notify} />
+  </div>`;
+}
+
+// Side panel in 3D Assets: one-click Start / Stop for Meta's SAM 3D models on this PC.
+const ENGINE_INFO = {
+  body: { use: 'Characters', icon: 'ph-person', cat: 'Human', what: 'Turns a photo or drawing of a person into a 3D body.' },
+  objects: { use: 'Buildings & props', icon: 'ph-house-line', cat: 'Building', what: 'Turns a picture of any object into a textured 3D mesh.' },
+};
+const ENGINE_STATE = {
+  ready: ['Running', 'tag-accent'], starting: ['Starting…', 'tag-meta'], stopped: ['Stopped', 'tag-neutral'],
+  error: ['Error', 'tag-danger'], other: ['Port busy', 'tag-danger'], missing: ['Not installed', 'tag-neutral'],
+};
+function SamEngines({ setRight, setDialog, notify }) {
+  const [list, setList] = useState(null);
+  const [busy, setBusy] = useState({});
+  const [err, setErr] = useState('');
+  const [auto, setAuto] = useState(() => { try { return localStorage.getItem('gf.samAuto') === '1'; } catch (e) { return false; } });
+  const autoDone = useRef(false);
+  const refresh = () => AI.samEngines().then(l => { setList(l); setErr(''); return l; }).catch(e => { setErr(e.message); return null; });
+  useEffect(() => {
+    let t, dead = false;
+    const tick = async () => { const l = await refresh(); if (dead) return; t = setTimeout(tick, l && l.some(e => e.state === 'starting') ? 1500 : 5000); };
+    tick();
+    return () => { dead = true; clearTimeout(t); };
+  }, []);
+  async function act(kind, action, quiet) {
+    setBusy(b => ({ ...b, [kind]: action }));
+    try {
+      const s = await AI.samEngine(kind, action);
+      if (!quiet) notify(action === 'stop' ? SAM_LABEL[kind] + ' stopped' : s.state === 'ready' ? SAM_LABEL[kind] + ' is already running' : 'Starting ' + SAM_LABEL[kind] + '. Loading it onto the GPU takes a little while.');
+    } catch (e) { if (!quiet) notify(e.message, true); }
+    await refresh();
+    setBusy(b => ({ ...b, [kind]: null }));
+  }
+  // "Start automatically": start every installed model that is stopped when 3D Assets opens.
+  useEffect(() => {
+    if (!auto || !list || autoDone.current) return;
+    autoDone.current = true;
+    list.filter(e => e.installed && e.state === 'stopped').forEach(e => act(e.kind, 'start', true));
+  }, [auto, list]);
+  function toggleAuto(on) { setAuto(on); autoDone.current = false; try { localStorage.setItem('gf.samAuto', on ? '1' : '0'); } catch (e) { /* not saved */ } }
+  const startAll = () => list.filter(e => e.installed && ['stopped', 'error'].includes(e.state)).forEach(e => act(e.kind, 'start'));
+  const canStartAll = list && list.some(e => e.installed && ['stopped', 'error'].includes(e.state));
+
+  return html`<aside class="engines">
+    <div class="row"><i class="ph ph-cpu" style="color:var(--color-meta)"></i><span style="font-size:14px;font-weight:500;flex:1">SAM 3D on this PC</span><span class="tag tag-meta">Meta AI</span></div>
+    <span class="muted" style="font-size:12px">Start Meta's image → 3D models here. They keep running until you stop them or close Game Forge.</span>
+    ${err && html`<div class="msg err" style="max-width:100%">${err}</div>`}
+    ${!list && !err && html`<span class="muted" style="font-size:12px"><i class="ph ph-spinner spin"></i> Checking…</span>`}
+    ${list && list.map(e => {
+      const info = ENGINE_INFO[e.kind];
+      const st = !e.installed && e.state === 'stopped' ? 'missing' : e.state;
+      const [label, tag] = ENGINE_STATE[st] || ENGINE_STATE.stopped;
+      const b = busy[e.kind];
+      return html`<div class=${'engine' + (st === 'ready' ? ' on' : '')} key=${e.kind}>
+        <div class="row" style="gap:8px">
+          <i class=${'ph ' + info.icon} style="font-size:20px;color:var(--color-accent)"></i>
+          <span class="stack" style="gap:0;flex:1;min-width:0"><span style="font-size:13px;font-weight:500">${e.label}</span><span class="muted" style="font-size:11px">${info.use}</span></span>
+          <span class=${'tag ' + tag}>${label}</span>
+        </div>
+        <span style="font-size:12px;color:var(--color-neutral-300)">${
+          st === 'ready' ? html`Ready on ${e.gpu || 'your GPU'}${e.vram ? ' · ' + e.vram + ' GB VRAM' : ''}${e.managed ? '' : ' · started outside Game Forge'}.`
+          : st === 'starting' ? html`Loading the model onto the GPU${e.seconds ? ' · ' + e.seconds + ' s' : ''}. This usually takes under a minute.`
+          : st === 'missing' ? e.missing
+          : st === 'error' ? e.error || 'It stopped with an error.'
+          : st === 'other' ? 'Another program is using port ' + e.port + '.'
+          : info.what}</span>
+        ${st === 'starting' && html`<span class="bar indet"><span></span></span>`}
+        ${['starting', 'error'].includes(st) && e.log.length > 0 && html`<span class="mono muted engine-log" title=${e.log.join('\n')}>${e.log[e.log.length - 1]}</span>`}
+        <div class="row" style="gap:6px;flex-wrap:wrap">
+          ${['stopped', 'error'].includes(st) && html`<button class="btn btn-primary" disabled=${!!b} onClick=${() => act(e.kind, 'start')}><i class=${'ph ' + (b ? 'ph-spinner spin' : 'ph-play')}></i>${st === 'error' ? 'Try again' : 'Start'}</button>`}
+          ${e.managed && ['ready', 'starting'].includes(st) && html`<button class="btn btn-secondary" disabled=${!!b} onClick=${() => act(e.kind, 'stop')}><i class=${'ph ' + (b ? 'ph-spinner spin' : 'ph-stop')}></i>Stop</button>`}
+          ${st === 'ready' && html`<button class="btn btn-secondary" onClick=${() => setDialog({ create: info.cat, fromImage: true })}><i class="ph ph-image"></i>From image</button>`}
+          ${st === 'missing' && e.kind === 'objects' && html`<button class="btn btn-secondary" onClick=${() => setRight('settings')}><i class="ph ph-cloud"></i>Use a cloud GPU</button>`}
+        </div>
+      </div>`;
+    })}
+    ${list && html`<button class="btn btn-solid" disabled=${!canStartAll} onClick=${startAll}><i class="ph ph-lightning"></i>Start all installed</button>`}
+    <label class="check" style="font-size:12px;color:var(--color-neutral-300)"><input type="checkbox" checked=${auto} onChange=${ev => toggleAuto(ev.target.checked)} />Start them automatically when I open 3D Assets</label>
+  </aside>`;
 }
 
 // ======================================================================

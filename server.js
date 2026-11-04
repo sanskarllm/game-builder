@@ -126,9 +126,11 @@ async function handleChat(req, res) {
 async function handleSam3d(req, res) {
   let body;
   try { body = JSON.parse(await readBody(req, 60 * 1024 * 1024)); } catch (e) { return send(res, 400, { error: 'Invalid request: ' + e.message }); }
-  const base = String(body.serviceUrl || ENV_SAM3D_URL).replace(/\/+$/, '');
+  // A model started with the Start buttons in 3D Assets takes the request first.
+  const local = ENGINES[body.kind] && ENGINES[body.kind].proc ? engineUrl(ENGINES[body.kind]) : '';
+  const base = String(local || body.serviceUrl || ENV_SAM3D_URL).replace(/\/+$/, '');
   if (!/^https?:\/\//.test(base)) return send(res, 400, { error: 'Set the SAM 3D Objects service URL in the Meta AI tab (or SAM3D_URL in .env).' });
-  const token = body.token || (base === ENV_SAM3D_URL ? ENV_SAM3D_TOKEN : '');
+  const token = local ? ENV_SAM3D_TOKEN : body.token || (base === ENV_SAM3D_URL ? ENV_SAM3D_TOKEN : '');
   const headers = token ? { Authorization: 'Bearer ' + token } : {};
   try {
     if (body.action === 'health') {
@@ -159,6 +161,116 @@ async function handleSam3d(req, res) {
   }
 }
 
+// ---------- Start / stop the SAM 3D services from the app ----------
+// The 3D Assets view has Start buttons for SAM 3D Body (characters, port 8000)
+// and SAM 3D Objects (buildings & props, port 8001). Each runs
+// sam3d-service/server.py as a child process of this server.
+const { spawn, execFile } = require('child_process');
+const os = require('os');
+const SAM_DIR = path.join(__dirname, 'sam3d-service');
+const VENV_PY = process.platform === 'win32'
+  ? path.join(os.homedir(), 'sam3d', '.venv', 'Scripts', 'python.exe')
+  : path.join(os.homedir(), 'sam3d', '.venv', 'bin', 'python');
+const ENGINES = {
+  body: {
+    label: 'SAM 3D Body', port: Number(process.env.SAM3D_BODY_PORT) || 8000,
+    python: process.env.SAM3D_BODY_PYTHON || VENV_PY,
+    repo: process.env.SAM3D_BODY_REPO || path.join(SAM_DIR, 'sam-3d-body'),
+    check: e => fs.existsSync(e.python) && fs.existsSync(path.join(e.repo, 'sam_3d_body')),
+    missing: 'SAM 3D Body is not installed yet. Run sam3d-service\\install-body.bat once, then press Start.',
+    env: e => ({ SAM3D_BODY_REPO: e.repo, SAM3D_BODY_HF: process.env.SAM3D_BODY_HF || 'facebook/sam-3d-body-dinov3', SAM3D_BODY_FOV: process.env.SAM3D_BODY_FOV || 'moge2' }),
+  },
+  objects: {
+    label: 'SAM 3D Objects', port: Number(process.env.SAM3D_OBJECTS_PORT) || 8001,
+    python: process.env.SAM3D_OBJECTS_PYTHON || '',
+    repo: process.env.SAM3D_OBJECTS_REPO || '',
+    check: e => !!(e.python && e.repo) && fs.existsSync(e.python) && fs.existsSync(path.join(e.repo, 'checkpoints', 'hf', 'pipeline.yaml')),
+    missing: 'SAM 3D Objects is not installed on this PC. It needs Linux and a 32 GB+ NVIDIA GPU: run it on a cloud GPU and enter its URL under Meta AI → SAM 3D, or set SAM3D_OBJECTS_REPO and SAM3D_OBJECTS_PYTHON in .env on a machine that has one.',
+    env: e => ({ SAM3D_OBJECTS_REPO: e.repo }),
+  },
+};
+for (const e of Object.values(ENGINES)) Object.assign(e, { proc: null, log: [], error: '', startedAt: 0 });
+
+function engineUrl(e) { return 'http://127.0.0.1:' + e.port; }
+async function engineHealth(e) {
+  try {
+    const r = await fetch(engineUrl(e) + '/health', { headers: ENV_SAM3D_TOKEN ? { Authorization: 'Bearer ' + ENV_SAM3D_TOKEN } : {}, signal: AbortSignal.timeout(1500) });
+    return r.ok ? await r.json() : null;
+  } catch (err) { return null; }
+}
+async function engineStatus(kind) {
+  const e = ENGINES[kind];
+  const h = await engineHealth(e);
+  let state = 'stopped';
+  if (h && (h.kinds || []).includes(kind)) state = h.error ? 'error' : (h.loaded || []).includes(kind) || h.mode === 'fake' ? 'ready' : 'starting';
+  else if (h) state = 'other';            // something else is answering on that port
+  else if (e.proc) state = 'starting';    // process is up, web server not listening yet
+  else if (e.error) state = 'error';
+  return {
+    kind, label: e.label, port: e.port, url: engineUrl(e), installed: e.check(e), missing: e.missing,
+    managed: !!e.proc, state, error: (h && h.error) || (state === 'error' ? e.error : ''),
+    gpu: h && h.gpu, vram: h && h.vram_used_gb, seconds: e.proc ? Math.round((Date.now() - e.startedAt) / 1000) : 0,
+    log: e.log.slice(-8),
+  };
+}
+function killTree(proc, wait) {
+  if (!proc) return;
+  const args = ['/pid', String(proc.pid), '/T', '/F'];
+  if (process.platform !== 'win32') { try { proc.kill('SIGTERM'); } catch (err) { /* already gone */ } return; }
+  if (wait) { try { require('child_process').execFileSync('taskkill', args, { stdio: 'ignore' }); } catch (err) { /* already gone */ } }
+  else execFile('taskkill', args, () => {});
+}
+async function startEngine(kind) {
+  const e = ENGINES[kind];
+  const now = await engineStatus(kind);
+  if (['ready', 'starting'].includes(now.state)) return now;
+  if (now.state === 'other') throw new Error(`Port ${e.port} is already used by another program. Close it, or set SAM3D_${kind.toUpperCase()}_PORT in .env.`);
+  if (!now.installed) throw new Error(e.missing);
+  e.log = []; e.error = ''; e.startedAt = Date.now();
+  const env = { ...process.env, ...e.env(e), SAM3D_ONLY: kind, SAM3D_PRELOAD: '1', HOST: '127.0.0.1', PORT: String(e.port),
+    PYTHONUNBUFFERED: '1', PYTHONIOENCODING: 'utf-8', HF_HUB_DISABLE_XET: '1', HF_HUB_DISABLE_SYMLINKS_WARNING: '1' };
+  const proc = spawn(e.python, [path.join(SAM_DIR, 'server.py')], { cwd: kind === 'objects' ? e.repo : SAM_DIR, env, windowsHide: true });
+  e.proc = proc;
+  const keep = buf => {
+    for (const line of buf.toString('utf8').split(/\r?\n/)) {
+      const t = line.trim(); if (!t) continue;
+      e.log.push(t); if (e.log.length > 60) e.log.shift();
+      process.stdout.write(`[${e.label}] ${t}\n`);
+    }
+  };
+  proc.stdout.on('data', keep); proc.stderr.on('data', keep);
+  proc.on('error', err => { e.error = err.message; e.proc = null; });
+  proc.on('exit', code => {
+    if (e.proc !== proc) return;
+    e.proc = null;
+    if (!e.stopping && code) e.error = `${e.label} stopped (exit code ${code}). ` + (e.log.filter(l => /error|failed|exception/i.test(l)).slice(-1)[0] || e.log.slice(-1)[0] || '');
+    e.stopping = false;
+  });
+  return engineStatus(kind);
+}
+async function handleEngines(req, res) {
+  try {
+    if (req.method === 'GET') return send(res, 200, { engines: await Promise.all(Object.keys(ENGINES).map(engineStatus)) });
+    const body = JSON.parse(await readBody(req) || '{}');
+    const e = ENGINES[body.kind];
+    if (!e) return send(res, 400, { error: 'Unknown SAM 3D engine: ' + body.kind });
+    if (body.action === 'start') return send(res, 200, await startEngine(body.kind));
+    if (body.action === 'stop') {
+      if (!e.proc) {
+        const s = await engineStatus(body.kind);
+        return send(res, s.state === 'stopped' ? 200 : 409, s.state === 'stopped' ? s : { error: `${e.label} was started outside Game Forge (for example with start-body.bat). Close that window to stop it.` });
+      }
+      e.stopping = true; e.error = ''; killTree(e.proc); e.proc = null;
+      return send(res, 200, { ...(await engineStatus(body.kind)), state: 'stopped' });
+    }
+    send(res, 400, { error: 'action must be start or stop' });
+  } catch (err) { send(res, 400, { error: err.message }); }
+}
+// Stop the services we started when Game Forge itself stops.
+const stopAll = () => { for (const e of Object.values(ENGINES)) if (e.proc) { e.stopping = true; killTree(e.proc, true); e.proc = null; } };
+process.on('exit', stopAll);
+for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP', 'SIGBREAK']) process.on(sig, () => { stopAll(); setTimeout(() => process.exit(0), 300); });
+
 function serveStatic(req, res) {
   const url = new URL(req.url, 'http://x');
   let p = decodeURIComponent(url.pathname);
@@ -176,6 +288,7 @@ http.createServer(async (req, res) => {
     return send(res, 200, { hasServerKey: !!ENV_KEY, baseUrl: ENV_BASE, model: ENV_MODEL, sam3dUrl: ENV_SAM3D_URL });
   }
   if (req.method === 'POST' && req.url.startsWith('/api/chat')) return handleChat(req, res);
+  if (req.url.startsWith('/api/sam3d/engines')) return handleEngines(req, res);
   if (req.method === 'POST' && req.url.startsWith('/api/sam3d')) return handleSam3d(req, res);
   if (req.method === 'GET') return serveStatic(req, res);
   send(res, 405, { error: 'Method not allowed' });

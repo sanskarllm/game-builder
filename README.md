@@ -125,8 +125,12 @@ the project folder.
    https://huggingface.co/settings/tokens.) Type tokens only into that window.
 4. **Wait for the download.** It fetches the 2.7 GB checkpoint and ends with
    **"All set."** Press any key to close it.
-5. **Start SAM 3D Body.** Double-click **`sam3d-service\start-body.bat`** and
-   keep its window open while you use Game Forge.
+5. **Start SAM 3D Body.** In Game Forge, open **3D Assets** and press **Start**
+   on the **SAM 3D Body · Characters** card in the side panel. It turns
+   **Running** once the model is on the GPU (about 20–30 s). Tick **Start them
+   automatically when I open 3D Assets** to skip the click next time. (You can
+   also double-click **`sam3d-service\start-body.bat`** and keep its window
+   open.)
 
 ## 6. Using Game Forge
 
@@ -144,6 +148,12 @@ the project folder.
 - **Assets:** the left panel lists characters, backgrounds and music. Click one
   to use it in the current scene. Hover for **Draw/Paint/Compose with Meta AI**,
   **Make 3D**, and delete. **Upload** adds your own images or audio.
+- **SAM 3D side panel:** in **3D Assets** the panel beside the viewer has a
+  card for **SAM 3D Body** (characters) and one for **SAM 3D Objects**
+  (buildings and props). Each shows **Running**, **Starting…**, **Stopped** or
+  **Not installed**, with **Start** and **Stop** buttons. **Start all
+  installed** starts every model this PC has. Models you start here stop when
+  Game Forge closes.
 - **3D:** switch to **3D Assets**. **Model a … with Meta AI** builds a model
   from shapes. **From image · SAM 3D** turns a picture into a mesh: pick
   **SAM 3D Body · people** and upload one person (photo or drawing; a
@@ -183,6 +193,11 @@ a 32 GB+ NVIDIA GPU** (A100, L40S, RTX 6000 Ada, H100…), so it runs on a
 rented cloud GPU. Setup steps are in
 [`sam3d-service/README.md`](sam3d-service/README.md#sam-3d-objects-on-a-cloud-gpu-linux-32-gb).
 Then in Game Forge → **Meta AI** → **SAM 3D**, enter the server's URL and token.
+
+On a Linux machine that has such a GPU, you can start Objects from the side
+panel instead: put `SAM3D_OBJECTS_REPO` (the sam-3d-objects folder) and
+`SAM3D_OBJECTS_PYTHON` (its Python) in `.env`, restart Game Forge, and press
+**Start** on the **SAM 3D Objects** card. It runs on port 8001.
 
 ## 8. Files and licences
 
