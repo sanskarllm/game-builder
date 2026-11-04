@@ -182,4 +182,10 @@ http.createServer(async (req, res) => {
 }).listen(PORT, HOST, () => {
   console.log(`Game Forge running at http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`);
   console.log(`Meta AI endpoint: ${ENV_BASE} · model ${ENV_MODEL} · server key ${ENV_KEY ? 'set' : 'not set (add one in the app or in .env)'}`);
+  // start-game-forge.bat sets OPEN_BROWSER=1 so the page opens once we are listening.
+  if (process.env.OPEN_BROWSER === '1') {
+    const url = `http://localhost:${PORT}`;
+    const cmd = process.platform === 'win32' ? ['cmd', ['/c', 'start', '', url]] : [process.platform === 'darwin' ? 'open' : 'xdg-open', [url]];
+    try { require('child_process').spawn(cmd[0], cmd[1], { stdio: 'ignore', detached: true }).unref(); } catch (e) { /* open it by hand */ }
+  }
 });
