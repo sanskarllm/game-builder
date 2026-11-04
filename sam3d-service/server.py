@@ -19,7 +19,7 @@ Endpoints
          textured: objects only, "1" to bake a texture (slower)
 
 Environment
-    SAM3D_BODY_REPO     path to a facebookresearch/sam-3d-body clone   (enables "body")
+    SAM3D_BODY_REPO     path to the sam-3d-body code (default: the bundled ./sam-3d-body)
     SAM3D_BODY_HF       HF repo id (default facebook/sam-3d-body-dinov3)
     SAM3D_BODY_CKPT     optional local folder holding model.ckpt + assets/mhr_model.pt
     SAM3D_OBJECTS_REPO  path to a facebookresearch/sam-3d-objects clone (enables "objects";
@@ -46,7 +46,8 @@ from PIL import Image
 TOKEN = os.environ.get("SAM3D_TOKEN", "")
 FAKE = os.environ.get("SAM3D_FAKE") == "1"
 MAX_SIDE = int(os.environ.get("SAM3D_MAX_SIDE", "1024"))
-BODY_REPO = os.environ.get("SAM3D_BODY_REPO", "")
+_BUNDLED_BODY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sam-3d-body")
+BODY_REPO = os.environ.get("SAM3D_BODY_REPO", "") or (_BUNDLED_BODY if os.path.isdir(os.path.join(_BUNDLED_BODY, "sam_3d_body")) else "")
 BODY_HF = os.environ.get("SAM3D_BODY_HF", "facebook/sam-3d-body-dinov3")
 BODY_CKPT = os.environ.get("SAM3D_BODY_CKPT", "")
 BODY_FOV = os.environ.get("SAM3D_BODY_FOV", "moge2")  # camera-FOV estimator; "" to skip (less VRAM, less accurate)

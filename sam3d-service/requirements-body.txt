@@ -1,0 +1,26 @@
+# SAM 3D Body service dependencies (PyTorch itself is installed separately
+# from the CUDA 12.8 index by install-body.bat).
+numpy
+opencv-python
+pillow
+scikit-image
+roma
+pytorch-lightning
+omegaconf
+hydra-core
+yacs
+timm
+einops
+trimesh
+dill
+braceexpand
+pyrootutils
+loguru
+optree
+fvcore
+huggingface_hub
+fastapi
+uvicorn
+python-multipart
+# MoGe2 camera-FOV estimator (better body proportions); needs git on PATH
+moge @ git+https://github.com/microsoft/MoGe.git

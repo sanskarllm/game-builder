@@ -47,13 +47,20 @@ larger output budget and asks for `reasoning_effort: low` on quick tasks
 The other presets run Meta Llama instead: Meta Llama API (llama.com), Groq,
 Together AI, or Llama on your own machine with Ollama.
 
-## SAM 3D Objects (image → 3D)
+## SAM 3D (image → 3D)
 
-Runs as a separate GPU service (`sam3d-service/server.py`) because the model
-needs Linux and a 32 GB+ NVIDIA GPU. Set it up on a cloud GPU following
-`sam3d-service/README.md`, then put its URL and token in the **Meta AI** tab
-(or `SAM3D_URL` / `SAM3D_TOKEN` in `.env`). Generated meshes are kept in the
-browser's IndexedDB and included in project exports.
+**SAM 3D Body** (people) runs on your own NVIDIA GPU. On Windows, double-click
+`sam3d-service/install-body.bat` once, then `sam3d-service/start-body.bat`
+whenever you use Game Forge. It answers on `http://127.0.0.1:8000`, which Game
+Forge uses by default. Measured on an RTX 5070: about 0.8 s per image, 4.5 GB
+VRAM at rest, 7.2 GB peak.
+
+**SAM 3D Objects** (any object) needs Linux and a 32 GB+ GPU, so it runs on a
+cloud GPU; see `sam3d-service/README.md`, then put its URL and token in the
+**Meta AI** tab (or `SAM3D_URL` / `SAM3D_TOKEN` in `.env`).
+
+Generated meshes are kept in the browser's IndexedDB and included in project
+exports.
 
 ## Files
 
@@ -63,4 +70,5 @@ browser's IndexedDB and included in project exports.
 - `public/player.js` — game runtime, shared by the editor preview and exported games
 - `public/viewer3d.js` — three.js viewer + GLB export
 - `public/sample.js` — starter project "The Lantern Keeper"
-- `sam3d-service/` — FastAPI wrapper around SAM 3D Objects' `Inference` (returns `.glb`, or `.ply` splats)
+- `sam3d-service/` — FastAPI service for SAM 3D Body / SAM 3D Objects (returns `.glb`); `install-body.bat` + `start-body.bat` set up SAM 3D Body on Windows in one click
+- `sam3d-service/sam-3d-body/` — Meta's SAM 3D Body code, bundled under the SAM License

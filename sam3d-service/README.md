@@ -10,33 +10,23 @@ One small FastAPI service, two Meta models:
 Game Forge uses it from **3D Assets → From image · SAM 3D** and from the cube
 button (**Make 3D**) on every character.
 
-## SAM 3D Body on this PC (Windows, RTX 50-series OK)
+## SAM 3D Body on Windows (one click, RTX 50-series OK)
 
-Installed outside OneDrive in `C:\Users\aires\sam3d`:
+Meta's SAM 3D Body code is bundled in [`sam-3d-body/`](sam-3d-body/) under the
+SAM License (see its `LICENSE` and `NOTICE.md`). Only the model weights are
+downloaded, from Hugging Face.
 
-```bash
-git clone https://github.com/facebookresearch/sam-3d-body C:\Users\aires\sam3d\sam-3d-body
-uv venv --python 3.11 C:\Users\aires\sam3d\.venv
-# PyTorch for CUDA 12.8 (needed for RTX 50-series)
-uv pip install --python C:\Users\aires\sam3d\.venv\Scripts\python.exe torch torchvision --index-url https://download.pytorch.org/whl/cu128
-uv pip install --python C:\Users\aires\sam3d\.venv\Scripts\python.exe numpy opencv-python roma pytorch-lightning omegaconf yacs timm einops trimesh huggingface_hub braceexpand pillow scikit-image dill hydra-core pyrootutils loguru optree fvcore fastapi uvicorn python-multipart
-uv pip install --python C:\Users\aires\sam3d\.venv\Scripts\python.exe "git+https://github.com/microsoft/MoGe.git"
-```
+1. Request access to the weights at https://huggingface.co/facebook/sam-3d-body-dinov3
+2. Double-click **`install-body.bat`**. It checks for an NVIDIA GPU and git,
+   installs `uv` if needed, creates a Python 3.11 environment in
+   `%USERPROFILE%\sam3d\.venv` (outside OneDrive and this repo), installs
+   PyTorch for CUDA 12.8 and [`requirements-body.txt`](requirements-body.txt),
+   asks you to sign in to Hugging Face once, and downloads the 2.7 GB checkpoint.
+3. Double-click **`start-body.bat`**. The model loads and warms up in about a
+   minute ("Model ready"). On first start PyTorch also fetches the DINOv3
+   backbone code from GitHub.
 
 Not needed: detectron2 (Game Forge passes the person's box itself), SAM3, pyrender.
-
-Checkpoints are gated: request access at
-https://huggingface.co/facebook/sam-3d-body-dinov3, then sign in once:
-
-```bash
-C:\Users\aires\sam3d\.venv\Scripts\hf.exe auth login
-```
-
-Start the service (downloads the 2.1 GB checkpoint on first run, then preloads it):
-
-```bash
-start-body.bat
-```
 
 It listens on `http://127.0.0.1:8000`, which Game Forge uses by default.
 `GET /health` reports the GPU and VRAM in use.
