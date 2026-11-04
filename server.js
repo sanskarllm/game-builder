@@ -291,11 +291,14 @@ process.on('exit', stopAll);
 for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP', 'SIGBREAK']) process.on(sig, () => { stopAll(); setTimeout(() => process.exit(0), 300); });
 
 function serveStatic(req, res) {
-  const url = new URL(req.url, 'http://x');
-  let p = decodeURIComponent(url.pathname);
+  let p;
+  try { p = decodeURIComponent(new URL(req.url, 'http://x').pathname); }
+  catch (e) { return send(res, 400, 'Invalid URL', 'text/plain'); }
+  if (p.includes('\0')) return send(res, 400, 'Invalid URL', 'text/plain');
   if (p === '/') p = '/index.html';
   const file = path.normalize(path.join(PUBLIC, p));
-  if (!file.startsWith(PUBLIC)) return send(res, 403, 'Forbidden', 'text/plain');
+  const relative = path.relative(PUBLIC, file);
+  if (relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) return send(res, 403, 'Forbidden', 'text/plain');
   fs.readFile(file, (err, buf) => {
     if (err) return send(res, 404, 'Not found', 'text/plain');
     send(res, 200, buf, MIME[path.extname(file)] || 'application/octet-stream');
