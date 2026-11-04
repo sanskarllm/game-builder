@@ -171,9 +171,10 @@ the project folder.
   characters, backgrounds and music, with 2D art.
 - **3D Novel (an interactive 3D story):** click **3D Novel** on the left.
   Choose the **Prompt**: **Game Forge's + my idea** (Game Forge's short prompt
-  tells Muse Wonder what it can use and how the file runs; **See Game Forge's
-  prompt** shows it), or **My own prompt** to edit that prompt or write your
-  own from scratch. Type an idea, or leave it empty and Muse Wonder decides.
+  describes a sandbox-style 3D story; **See Game Forge's prompt** shows it), or
+  **My own prompt** to write your own: the kind of game, story and look you
+  want. Game Forge always adds the technical details itself (your 3D models,
+  how to load them, how the file runs), so your prompt only needs your ideas. Type an idea, or leave it empty and Muse Wonder decides.
   **Optional starting points** (Isometric room diorama, Cozy café or shop,
   Investigation room, Rooms to explore) add an editable description to your
   idea, for novels set in isometric cut-away rooms. **Reference images** (up

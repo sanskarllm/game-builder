@@ -9,17 +9,23 @@ export const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.160.0/';
 const IMPORTMAP = `<script type="importmap">{"imports":{"three":"${THREE_URL}build/three.module.js","three/addons/":"${THREE_URL}examples/jsm/"}}</script>`;
 
 // ---------- what Muse Wonder is told ----------
-// Facts only: what the author wants, what it can use and how the file runs.
-// Every design decision is the model's. The author can edit or replace this
-// whole prompt in the 3D Novel panel ("My own prompt").
-export const DEFAULT_PROMPT = `You are making an interactive 3D story game for the browser, for Game Forge: a sandbox-style 3D world the player explores. The player moves the story on only by doing things in the world: clicking a person to talk to them, clicking the pan to cook, clicking a door to go to another room, picking up or using an object. What they choose to do is how they choose. The dialogue box is only for reading what people say: it has no choice buttons or menus. The story, the world, how it looks and plays, and how it is coded are up to you.
+// Two parts. STYLE_PROMPT is Game Forge's creative brief (the sandbox idea);
+// in "My own prompt" the author writes their own in its place. TECH_PROMPT is
+// the technical part (what it can use, how the file runs) and is always added
+// out of sight, so the game works whatever the author writes.
+export const STYLE_PROMPT = `You are making an interactive 3D story game for the browser, for Game Forge: a sandbox-style 3D world the player explores. The player moves the story on only by doing things in the world: clicking a person to talk to them, clicking the pan to cook, clicking a door to go to another room, picking up or using an object. What they choose to do is how they choose. The dialogue box is only for reading what people say: it has no choice buttons or menus. The story, the world, how it looks and plays, and how it is coded are up to you.`;
 
-What you can use (all optional):
+export const TECH_PROMPT = `What you can use (all optional):
 - FORGE.models: [{ name, cat, height }] the author's 3D models (cat is Human, Building or Prop). await FORGE.loadModel(name) gives a new THREE.Group copy, in metres, standing on y = 0. Human models are scanned SAM 3D Body meshes (posed, untextured, facing +Z), good starting points for people that you can change however you like. FORGE.dressBody(group, { skin, hair, top, bottom, shoes, coat }) colours one by body region, if that helps.
 - FORGE.story: the author's 2D visual novel, when they share it, as inspiration. Your 3D story does not have to follow it. Shape: { title, logline, start, characters: [{ name, role, desc, color, model }], locations: [{ name, desc }], scenes: [{ id, title, location, music, chars, lines: [{ who, text }], choices: [{ text, to }] }] }, or null.
 - FORGE.image(name): the 2D art for a character or location, as a URL. FORGE.music lists soundtrack names; FORGE.playMusic(name) and FORGE.stopMusic() play them.
 
 How it runs: reply with one complete HTML file, from <!DOCTYPE html> to </html>, and nothing else. It runs in a sandboxed iframe with an import map for three.js 0.160 ("three" and "three/addons/…") already added. There is no network, storage, cookies or alert/prompt/confirm in that sandbox.`;
+
+export const DEFAULT_PROMPT = STYLE_PROMPT + '\n\n' + TECH_PROMPT;
+// The full system prompt: the author's own creative prompt, or Game Forge's,
+// followed by the technical part.
+export const systemPrompt = own => ((own && own.trim()) ? own.trim() + '\n\n' + TECH_PROMPT : DEFAULT_PROMPT);
 
 // The author's request plus a summary of what is available.
 export function brief(game, { idea, useStory, useAssets, refs } = {}) {
@@ -53,7 +59,8 @@ const complete = t => /<\/html>\s*$/i.test(t);
 
 // Writes (or rewrites) the 3D novel. Long replies that get cut off are
 // continued up to two times. onStage(text) reports progress.
-// prompt: the author's own system prompt ("My own prompt"), else DEFAULT_PROMPT.
+// prompt: the author's own creative prompt ("My own prompt"); the technical
+// part is added to it. Without one, Game Forge's prompt is used.
 // refs: reference image data URLs, sent to the model with the request.
 export async function codeGame({ idea, useStory, useAssets, refs, prompt, game, current, change, error, onStage }) {
   const model = codeModel();
@@ -62,7 +69,7 @@ export async function codeGame({ idea, useStory, useAssets, refs, prompt, game, 
     ? `Here is the current game:\n\n${current}\n\n${error ? 'It shows this error while running:\n' + error + '\n\nFix the cause.' : 'The author asks: ' + change}\n\nReply with the complete updated HTML file.\n\nFor reference:\n${facts}`
     : facts;
   const content = refs && refs.length ? [{ type: 'text', text: user }, ...refs.map(url => ({ type: 'image_url', image_url: { url } }))] : user;
-  const messages = [{ role: 'system', content: (prompt && prompt.trim()) || DEFAULT_PROMPT }, { role: 'user', content }];
+  const messages = [{ role: 'system', content: systemPrompt(prompt) }, { role: 'user', content }];
   onStage && onStage(`${model} is building the 3D novel…`);
   let r = await llama(messages, { model, maxTokens: 24000, temperature: 0.6, effort: 'medium', full: true });
   let out = extractHtml(r.text);

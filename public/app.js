@@ -791,7 +791,9 @@ function EditCode(p) {
   const [useStory, setUseStory] = useState(!!code.useStory);
   const [refs, setRefs] = useState(code.refs || []);
   const [promptMode, setPromptMode] = useState(code.promptMode || 'forge');
-  const [customPrompt, setCustomPrompt] = useState(code.customPrompt || Coder.DEFAULT_PROMPT);
+  // Only the author's own words: the technical part is added out of sight.
+  // (A prompt saved before the split, with the technical part in it, starts empty.)
+  const [customPrompt, setCustomPrompt] = useState(code.customPrompt && !code.customPrompt.includes('FORGE.loadModel') ? code.customPrompt : '');
   const [showPrompt, setShowPrompt] = useState(false);
   const [change, setChange] = useState('');
   // Reference images: scaled to 1024 px JPEG so they stay small in the project.
@@ -830,12 +832,12 @@ function EditCode(p) {
           <button class=${'seg-opt' + (promptMode === 'own' ? ' on' : '')} onClick=${() => setPromptMode('own')}>My own prompt</button>
         </div>
         ${promptMode === 'forge' ? html`
-          <span class="muted" style="font-size:11px">Game Forge's prompt tells Muse Wonder what it can use and how the file runs; your idea goes with it.</span>
+          <span class="muted" style="font-size:11px">Game Forge's prompt describes a sandbox-style 3D story; your idea goes with it.</span>
           <button class="btn btn-ghost" style="align-self:flex-start;font-size:12px" onClick=${() => setShowPrompt(!showPrompt)}><i class=${'ph ' + (showPrompt ? 'ph-caret-down' : 'ph-caret-right')}></i>${showPrompt ? 'Hide' : 'See'} Game Forge's prompt</button>
-          ${showPrompt && html`<textarea class="input mono" readonly style="min-height:200px;font-size:11px" value=${Coder.DEFAULT_PROMPT}></textarea>`}` : html`
-          <span class="muted" style="font-size:11px">Write the whole prompt yourself, or edit Game Forge's. Your idea, the list of your 3D models and your reference images are still sent with it.</span>
+          ${showPrompt && html`<textarea class="input mono" readonly style="min-height:200px;font-size:11px" value=${Coder.STYLE_PROMPT}></textarea>`}` : html`
+          <span class="muted" style="font-size:11px">Write your own prompt: the kind of game, story and look you want. Game Forge adds the technical details itself (your 3D models, how to load them, how the file runs), so you don't need to.</span>
           <textarea class="input mono" style="min-height:220px;font-size:11px" value=${customPrompt} onInput=${e => setCustomPrompt(e.target.value)}></textarea>
-          <div class="row" style="gap:6px"><button class="btn btn-ghost" style="font-size:12px" onClick=${() => setCustomPrompt(Coder.DEFAULT_PROMPT)}><i class="ph ph-arrow-counter-clockwise"></i>Start from Game Forge's</button><button class="btn btn-ghost" style="font-size:12px" onClick=${() => setCustomPrompt('')}><i class="ph ph-eraser"></i>Clear</button></div>`}
+          <div class="row" style="gap:6px"><button class="btn btn-ghost" style="font-size:12px" onClick=${() => setCustomPrompt(Coder.STYLE_PROMPT)}><i class="ph ph-arrow-counter-clockwise"></i>Start from Game Forge's</button><button class="btn btn-ghost" style="font-size:12px" onClick=${() => setCustomPrompt('')}><i class="ph ph-eraser"></i>Clear</button></div>`}
       </div>
       <div class="field"><label>Your idea (optional: leave it empty and Muse Wonder decides)</label><textarea class="input" style="min-height:96px" value=${idea} onInput=${e => setIdea(e.target.value)}></textarea></div>
       <div class="stack" style="gap:4px">
