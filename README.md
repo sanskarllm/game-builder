@@ -159,6 +159,10 @@ the project folder.
   shows "Saved" or "Unsaved changes".
 - **Open a saved project:** click **Open** (or press **Ctrl+O**) and pick a
   `.gameforge.json` file.
+- **Start over:** **New project** gives you an empty game (one scene, nothing
+  else) to build by hand or with Forge Assistant. If the current project has
+  unsaved changes it offers to save first, and **Undo** brings the previous
+  project back.
 - **Share:** **Save → Save as playable game (.html)** saves one file that runs
   in any browser.
 - **Saving in the game:** players can open **☰ Menu** while playing to

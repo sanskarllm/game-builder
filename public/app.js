@@ -46,11 +46,21 @@ function toPng(url, w = 512, h = 1024) {
 function initialGame() {
   const g = store.get('gf.project', null);
   if (g && Array.isArray(g.scenes) && g.scenes.length) {
-    if (!g.assets3d || !g.assets3d.length) g.assets3d = clone(SAMPLE_3D);
+    if (!g.assets3d) g.assets3d = clone(SAMPLE_3D);
     [g.characters, g.backgrounds, g.music, g.assets3d].forEach(list => (list || []).forEach(x => delete x.busy));
     return g;
   }
   return { ...clone(SAMPLE_GAME), assets3d: clone(SAMPLE_3D) };
+}
+
+// An empty project: one scene, one backdrop, nothing else.
+function blankGame() {
+  return {
+    title: 'Untitled Game', logline: '', characters: [], music: [], assets3d: [],
+    backgrounds: [{ name: 'Backdrop', desc: 'Simple evening backdrop' }],
+    scenes: [{ id: 's1', title: 'Scene 1', x: 0, y: 60, bg: 'Backdrop', music: '', transition: 'Fade', chars: [],
+      lines: [{ who: 'Narrator', text: 'Your story starts here. Write it in the Edit panel, or ask Forge Assistant.' }], choices: [] }],
+  };
 }
 
 const TABS = {
@@ -218,22 +228,34 @@ function App() {
   const dirty = savedGame.current !== game;
   const PROJECT_TYPES = [{ description: 'Game Forge project', accept: { 'application/json': ['.json'] } }];
   function markSaved(name, g) { savedGame.current = g; setSaveInfo({ name, at: Date.now() }); }
+  // Returns true once the file is written (false if cancelled or failed).
   async function saveProject(as) {
     setMenu(false);
     const g = gameRef.current, data = JSON.stringify(g, null, 1), name = slug(g.title) + '.gameforge.json';
-    if (!canWriteFiles) { download(name, new Blob([data], { type: 'application/json' })); markSaved(name, g); notify('Saved ' + name + ' to your Downloads'); return; }
+    if (!canWriteFiles) { download(name, new Blob([data], { type: 'application/json' })); markSaved(name, g); notify('Saved ' + name + ' to your Downloads'); return true; }
     try {
       const h = (!as && fileHandle.current) || await window.showSaveFilePicker({ suggestedName: name, types: PROJECT_TYPES });
       const w = await h.createWritable(); await w.write(data); await w.close();
       fileHandle.current = h; markSaved(h.name, g); notify('Saved ' + h.name);
-    } catch (e) { if (e.name !== 'AbortError') notify('Could not save: ' + e.message, true); }
+      return true;
+    } catch (e) { if (e.name !== 'AbortError') notify('Could not save: ' + e.message, true); return false; }
   }
   function parseProject(text) {
-    let g; try { g = AI.normalizeGame(JSON.parse(text)); } catch (e) { throw new Error('That file is not a Game Forge project.'); }
+    let raw, g; try { raw = JSON.parse(text); g = AI.normalizeGame(raw); } catch (e) { throw new Error('That file is not a Game Forge project.'); }
     if (!g.scenes.length) throw new Error('That file is not a Game Forge project.');
-    if (!g.assets3d.length) g.assets3d = clone(SAMPLE_3D);
+    if (!raw.assets3d) g.assets3d = clone(SAMPLE_3D); // older projects had no 3D library
     return g;
   }
+  // ---- New project: a blank game. Asks to save first if there is unsaved work.
+  const hasUnsavedWork = dirty && !!(saveInfo || game.scenes.some(s => s.lines.length));
+  function startNewProject() {
+    const g = blankGame();
+    snapshot(); // Undo brings the previous project back
+    setGame(g); setSel(g.scenes[0].id); setMode('build'); setTab('characters'); setRight('edit');
+    fileHandle.current = null; savedGame.current = g; setSaveInfo(null); setDialog(null); // untouched blank = nothing to lose
+    notify('New project — name it in the top bar. Undo brings back the previous one.');
+  }
+  function newProject() { setMenu(false); if (hasUnsavedWork) setDialog('newproj'); else startNewProject(); }
   function loadProject(g, handle, name) { snapshot(); setGame(g); setSel(g.scenes[0].id); fileHandle.current = handle; markSaved(name, g); notify('Opened ' + name); }
   async function openProject() {
     setMenu(false);
@@ -278,6 +300,7 @@ function App() {
       <button class="btn btn-secondary btn-icon" title="Undo" disabled=${!undoCount} onClick=${undo}><i class="ph ph-arrow-u-up-left"></i></button>
       <button class="btn btn-solid" onClick=${() => setDialog('new')}><i class="ph ph-magic-wand"></i>New game with Meta AI</button>
       <button class="btn btn-secondary" onClick=${() => setDialog('play')}><i class="ph ph-play"></i>Play build</button>
+      <button class="btn btn-secondary" onClick=${newProject} title="Start a new, empty project"><i class="ph ph-file-plus"></i>New project</button>
       <div class="split" style="position:relative">
         <button class="btn btn-secondary" onClick=${() => saveProject(false)} title=${'Save project (Ctrl+S)' + (saveInfo ? ' · ' + saveInfo.name : '')}><i class="ph ph-floppy-disk"></i>Save</button>
         <button class="btn btn-secondary split-caret" title="More save options" aria-label="More save options" onClick=${() => setMenu(!menu)}><i class="ph ph-caret-down"></i></button>
@@ -298,6 +321,15 @@ function App() {
     </div>
     ${dialog === 'new' && html`<${NewGameDialog} onClose=${() => setDialog(null)} onBuild=${buildGame} aiReady=${aiReady} goSettings=${() => { setDialog(null); setRight('settings'); }} />`}
     ${dialog && dialog.create && html`<${CreateDialog} ...${ctx} type=${dialog.create} fromImage=${dialog.fromImage} onClose=${() => setDialog(null)} />`}
+    ${dialog === 'newproj' && html`<div class="backdrop" onClick=${() => setDialog(null)}><div class="dialog" style="width:420px" onClick=${e => e.stopPropagation()}>
+      <div class="row"><i class="ph ph-file-plus" style="color:var(--color-accent);font-size:18px"></i><span class="dialog-title">Start a new project?</span></div>
+      <span style="font-size:13px;color:var(--color-neutral-300)">“${game.title}” has unsaved changes. Save it first?</span>
+      <div class="dialog-actions">
+        <button class="btn btn-secondary" onClick=${() => setDialog(null)}>Cancel</button>
+        <button class="btn btn-secondary" onClick=${startNewProject}>Don’t save</button>
+        <button class="btn btn-solid" onClick=${async () => { if (await saveProject(false)) startNewProject(); }}><i class="ph ph-floppy-disk"></i>Save and continue</button>
+      </div>
+    </div></div>`}
     ${dialog === 'play' && html`<${PlayerOverlay} game=${game} onClose=${() => { FP.music.stop(); setDialog(null); }} />`}
     ${toast && html`<div class=${'toast' + (toast.err ? ' err' : '')}>${toast.text}</div>`}
   </div>`;
