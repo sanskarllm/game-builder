@@ -265,15 +265,34 @@ function Sidebar(p) {
   const tabs = TABS[is3d ? '3d' : 'build'];
   const activeTab = tabs.some(t => t[0] === tab) ? tab : tabs[0][0];
   const fileRef = useRef();
+  const searchRef = useRef();
+  const [query, setQuery] = useState('');
+  // Press "/" anywhere outside a text field to jump to the search box.
+  useEffect(() => {
+    const k = e => { if (e.key === '/' && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) { e.preventDefault(); searchRef.current && searchRef.current.focus(); } };
+    window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k);
+  }, []);
+
+  // Search matches every word of the query against an asset's name and its
+  // description / role / mood / prompt, case-insensitively.
+  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const matches = fields => !words.length || words.every(w => fields.filter(Boolean).join(' ').toLowerCase().includes(w));
+  const SEARCH = {
+    characters: () => game.characters.map(c => [c.name, c.role, c.desc]),
+    backgrounds: () => game.backgrounds.map(b => [b.name, b.desc]),
+    music: () => game.music.map(m => [m.name, m.mood]),
+  };
+  ['Building', 'Human', 'Prop'].forEach(cat => { SEARCH[cat] = () => game.assets3d.filter(a => a.cat === cat).map(a => [a.name, a.prompt, a.cat, a.source === 'sam3d' ? samLabel(a) : 'primitives']); });
+  const elsewhere = words.length ? tabs.filter(([id]) => id !== activeTab).map(([id, label]) => [id, label, SEARCH[id]().filter(matches).length]).filter(t => t[2]) : [];
 
   let items = [];
   if (is3d) items = game.assets3d.filter(a => a.cat === activeTab).map(a => ({
-    key: a.name, name: a.name, meta: a.source === 'sam3d' ? (a.busy ? samLabel(a) + ' is reconstructing…' : samLabel(a) + ' mesh') : a.busy ? 'Meta AI is modeling…' : ((a.parts || []).length + ' parts' + (a.style ? ' · ' + a.style : '')), icon: ICON3D[a.cat], busy: a.busy, on: a.name === sel3d,
+    key: a.name, name: a.name, text: [a.name, a.prompt, a.cat, a.source === 'sam3d' ? samLabel(a) : 'primitives'], meta: a.source === 'sam3d' ? (a.busy ? samLabel(a) + ' is reconstructing…' : samLabel(a) + ' mesh') : a.busy ? 'Meta AI is modeling…' : ((a.parts || []).length + ' parts' + (a.style ? ' · ' + a.style : '')), icon: ICON3D[a.cat], busy: a.busy, on: a.name === sel3d,
     onClick: () => { setSel3d(a.name); setRight('edit'); },
     del: () => update(g => { g.assets3d = g.assets3d.filter(x => x.name !== a.name); return g; }, true),
   }));
   else if (activeTab === 'characters') items = game.characters.map(c => ({
-    key: c.name, name: c.name, meta: c.busy ? 'Meta AI is drawing…' : (c.role || '') + (c.svg ? ' · AI art' : c.img ? ' · uploaded' : ' · placeholder'), img: FP.charUrl(game, c.name), contain: true, busy: c.busy,
+    key: c.name, name: c.name, text: [c.name, c.role, c.desc], meta: c.busy ? 'Meta AI is drawing…' : (c.role || '') + (c.svg ? ' · AI art' : c.img ? ' · uploaded' : ' · placeholder'), img: FP.charUrl(game, c.name), contain: true, busy: c.busy,
     on: cur && cur.chars.some(x => x.name === c.name),
     onClick: () => updScene(s => { if (!s.chars.some(x => x.name === c.name)) { const used = s.chars.map(x => x.pos); s.chars.push({ name: c.name, expr: 'neutral', pos: ['C', 'L', 'R'].find(q => !used.includes(q)) || 'C' }); } }, true),
     paint: () => paintChar(c.name), paintTitle: 'Draw with Meta AI',
@@ -281,20 +300,22 @@ function Sidebar(p) {
     del: () => update(g => { g.characters = g.characters.filter(x => x.name !== c.name); g.scenes.forEach(s => s.chars = s.chars.filter(x => x.name !== c.name)); return g; }, true),
   }));
   else if (activeTab === 'backgrounds') items = game.backgrounds.map(b => ({
-    key: b.name, name: b.name, meta: b.busy ? 'Meta AI is painting…' : (b.svg ? 'AI art' : b.img ? 'Uploaded' : 'Placeholder') + ' · ' + game.scenes.filter(s => s.bg === b.name).length + ' scenes', img: FP.bgUrl(game, b.name), busy: b.busy,
+    key: b.name, name: b.name, text: [b.name, b.desc], meta: b.busy ? 'Meta AI is painting…' : (b.svg ? 'AI art' : b.img ? 'Uploaded' : 'Placeholder') + ' · ' + game.scenes.filter(s => s.bg === b.name).length + ' scenes', img: FP.bgUrl(game, b.name), busy: b.busy,
     on: cur && cur.bg === b.name,
     onClick: () => updScene(s => { s.bg = b.name; }, true),
     paint: () => paintBg(b.name), paintTitle: 'Paint with Meta AI',
     del: () => update(g => { g.backgrounds = g.backgrounds.filter(x => x.name !== b.name); return g; }, true),
   }));
   else items = game.music.map(m => ({
-    key: m.name, name: m.name, meta: m.busy ? 'Meta AI is composing…' : (m.src ? 'Uploaded audio' : m.notes ? 'Composed by Meta AI · ' + m.bpm + ' bpm' : 'Sketch · ' + (m.mood || '')), icon: 'ph-music-note', busy: m.busy,
+    key: m.name, name: m.name, text: [m.name, m.mood], meta: m.busy ? 'Meta AI is composing…' : (m.src ? 'Uploaded audio' : m.notes ? 'Composed by Meta AI · ' + m.bpm + ' bpm' : 'Sketch · ' + (m.mood || '')), icon: 'ph-music-note', busy: m.busy,
     on: cur && cur.music === m.name,
     onClick: () => updScene(s => { s.music = m.name; }, true),
     paint: () => compose(m.name), paintTitle: 'Compose with Meta AI',
     play: () => { if (FP.music.current === m.name) FP.music.stop(); else { FP.music.stop(); FP.music.play(game, m.name); } },
     del: () => update(g => { g.music = g.music.filter(x => x.name !== m.name); return g; }, true),
   }));
+  const total = items.length;
+  items = items.filter(a => matches(a.text));
 
   async function onFiles(e) {
     const files = [...e.target.files]; e.target.value = '';
@@ -321,14 +342,22 @@ function Sidebar(p) {
     <div style="padding:var(--space-4) var(--space-4) 0;display:flex;flex-direction:column;gap:8px">
       <div class="row" style="justify-content:space-between;padding:4px 8px 0">
         <span class="kicker">${is3d ? '3D library' : 'Images & audio'}</span>
-        <span class="row" style="gap:4px"><span style="font-size:11px" class="muted">${items.length} items</span>
+        <span class="row" style="gap:4px"><span style="font-size:11px" class="muted">${words.length ? items.length + ' of ' + total : total + ' items'}</span>
           ${!is3d && html`<button class="btn btn-secondary btn-icon" style="width:26px;height:26px" title="Upload your own files" onClick=${() => fileRef.current.click()}><i class="ph ph-upload-simple"></i></button>
           <input type="file" multiple accept=${activeTab === 'music' ? 'audio/*' : 'image/*'} ref=${fileRef} onChange=${onFiles} style="display:none" />`}
         </span>
       </div>
       <div class="tabs">${tabs.map(([id, label]) => html`<button class=${activeTab === id ? 'on' : ''} onClick=${() => setTab(id)}>${label}</button>`)}</div>
+      <label class="search">
+        <i class="ph ph-magnifying-glass"></i>
+        <input ref=${searchRef} type="search" placeholder=${'Search ' + tabs.find(t => t[0] === activeTab)[1].toLowerCase() + '…  ( / )'} value=${query} aria-label="Search assets"
+          onInput=${e => setQuery(e.target.value)} onKeyDown=${e => { if (e.key === 'Escape') { setQuery(''); e.target.blur(); } }} />
+        ${query && html`<button class="search-clear" title="Clear search" onClick=${() => { setQuery(''); searchRef.current.focus(); }}><i class="ph ph-x"></i></button>`}
+      </label>
     </div>
     <div style="flex:1;overflow:auto;padding:var(--space-3) var(--space-4);display:flex;flex-direction:column;gap:3px">
+      ${words.length > 0 && !items.length && html`<div class="search-empty">No ${tabs.find(t => t[0] === activeTab)[1].toLowerCase()} match “${query.trim()}”.</div>`}
+      ${elsewhere.length > 0 && html`<div class="search-elsewhere">Also in: ${elsewhere.map(([id, label, n]) => html`<button class="chip" onClick=${() => setTab(id)}>${label} · ${n}</button>`)}</div>`}
       ${items.map(a => html`<div key=${a.key} class=${'asset' + (a.on ? ' on' : '')} role="button" tabindex="0" onClick=${a.onClick} title=${is3d ? 'Select' : activeTab === 'characters' ? 'Add to scene' : 'Use in scene'}>
         <span class="thumb">${a.img ? html`<img class=${a.contain ? 'contain' : ''} src=${a.img} alt="" />` : html`<i class=${'ph ' + a.icon} style="font-size:17px"></i>`}</span>
         <span style="display:flex;flex-direction:column;gap:2px;min-width:0;flex:1">
