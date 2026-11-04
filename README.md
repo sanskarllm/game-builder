@@ -125,6 +125,8 @@ the project folder.
    https://huggingface.co/settings/tokens.) Type tokens only into that window.
 4. **Wait for the download.** It fetches the 2.7 GB checkpoint and ends with
    **"All set."** Press any key to close it.
+5. **Start SAM 3D Body.** Double-click **`sam3d-service\start-body.bat`** and
+   keep its window open while you use Game Forge.
 
 ## 6. Using Game Forge
 
