@@ -16,7 +16,7 @@ Meta's **SAM 3D Body** to turn a picture of a person into a 3D model.
 | **3D from an image** | **SAM 3D Body** rebuilds a person from a photo or drawing as a posed 3D body mesh, on your own GPU. Optional **SAM 3D Objects** does any object on a cloud GPU |
 
 Also: drag-to-arrange scene chart, live preview, full-screen playtest, upload
-your own images and audio, autosave, undo, and **Export → Playable game
+your own images and audio, autosave, undo, and **Save → Save as playable game
 (.html)**, a single file anyone can open in a browser.
 
 ---
@@ -154,11 +154,13 @@ the project folder.
 - **Save your project:** click **Save** (or press **Ctrl+S**). In Chrome or Edge
   the first save asks where to put the `.gameforge.json` file, and every save
   after that updates the same file; other browsers save a copy to Downloads.
-  **Export → Save project as…** (Ctrl+Shift+S) picks a new file, and
-  **Export → Open project…** (Ctrl+O) opens one. The top bar shows "Saved" or
-  "Unsaved changes".
-- **Share:** **Export → Playable game (.html)** saves one file that runs in any
-  browser.
+  The arrow next to **Save** has **Save project as…** (Ctrl+Shift+S),
+  **Save as playable game (.html)** and **Reset to sample game**. The top bar
+  shows "Saved" or "Unsaved changes".
+- **Open a saved project:** click **Open** (or press **Ctrl+O**) and pick a
+  `.gameforge.json` file.
+- **Share:** **Save → Save as playable game (.html)** saves one file that runs
+  in any browser.
 - **Saving in the game:** players can open **☰ Menu** while playing to
   **Save game** or **Load game** in three slots. The game also autosaves, so the
   title screen offers **Continue**. This works in **Play build** and in exported

@@ -91,7 +91,7 @@ function App() {
   useEffect(() => { fetch('/api/status').then(r => r.json()).then(setServer).catch(() => setServer({ offline: true })); }, []);
   const saveWarned = useRef(false);
   useEffect(() => {
-    const t = setTimeout(() => { if (!persist(game) && !saveWarned.current) { saveWarned.current = true; notify('Project is too large to autosave in the browser — use Export → Project file.', true); } }, 400);
+    const t = setTimeout(() => { if (!persist(game) && !saveWarned.current) { saveWarned.current = true; notify('Project is too large to autosave in the browser — click Save to keep it in a file.', true); } }, 400);
     return () => clearTimeout(t);
   }, [game]);
   useEffect(() => { if (!game.scenes.some(s => s.id === sel) && game.scenes[0]) setSel(game.scenes[0].id); }, [game, sel]);
@@ -206,7 +206,7 @@ function App() {
     const data = JSON.stringify({ ...game, assets3d: undefined }).replace(/</g, '\\u003c');
     const page = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${game.title.replace(/</g, '')}</title><style>html,body{margin:0;height:100%;background:#05060c;display:grid;place-items:center}#game{width:min(100vw,177.78vh);aspect-ratio:16/9}</style></head><body><div id="game"></div><script>${js}<\/script><script>ForgePlayer.boot(document.getElementById('game'),${data});<\/script></body></html>`;
     download(slug(game.title) + '.html', new Blob([page], { type: 'text/html' }));
-    notify('Exported a playable game: ' + slug(game.title) + '.html');
+    notify('Saved a playable game: ' + slug(game.title) + '.html');
   }
   // ---- project file: Save (Ctrl+S), Save as (Ctrl+Shift+S), Open (Ctrl+O) ----
   // In Chrome/Edge the first save asks where to put the file and later saves
@@ -278,17 +278,18 @@ function App() {
       <button class="btn btn-secondary btn-icon" title="Undo" disabled=${!undoCount} onClick=${undo}><i class="ph ph-arrow-u-up-left"></i></button>
       <button class="btn btn-solid" onClick=${() => setDialog('new')}><i class="ph ph-magic-wand"></i>New game with Meta AI</button>
       <button class="btn btn-secondary" onClick=${() => setDialog('play')}><i class="ph ph-play"></i>Play build</button>
-      <button class="btn btn-secondary" onClick=${() => saveProject(false)} title=${'Save project (Ctrl+S)' + (saveInfo ? ' · ' + saveInfo.name : '')}><i class="ph ph-floppy-disk"></i>Save</button>
-      <div style="position:relative">
-        <button class="btn btn-primary" onClick=${() => setMenu(!menu)}><i class="ph ph-export"></i>Export<i class="ph ph-caret-down"></i></button>
+      <div class="split" style="position:relative">
+        <button class="btn btn-secondary" onClick=${() => saveProject(false)} title=${'Save project (Ctrl+S)' + (saveInfo ? ' · ' + saveInfo.name : '')}><i class="ph ph-floppy-disk"></i>Save</button>
+        <button class="btn btn-secondary split-caret" title="More save options" aria-label="More save options" onClick=${() => setMenu(!menu)}><i class="ph ph-caret-down"></i></button>
         ${menu && html`<div class="menu" onMouseLeave=${() => setMenu(false)}>
-          <button onClick=${exportGame}><i class="ph ph-globe"></i>Playable game (.html)</button>
-          <button onClick=${() => saveProject(true)}><i class="ph ph-floppy-disk"></i>Save project as… <span class="kbd">Ctrl+Shift+S</span></button>
-          <button onClick=${openProject}><i class="ph ph-folder-open"></i>Open project… <span class="kbd">Ctrl+O</span></button>
+          <button onClick=${() => saveProject(false)}><i class="ph ph-floppy-disk"></i>Save project <span class="kbd">Ctrl+S</span></button>
+          <button onClick=${() => saveProject(true)}><i class="ph ph-copy"></i>Save project as… <span class="kbd">Ctrl+Shift+S</span></button>
+          <button onClick=${exportGame}><i class="ph ph-globe"></i>Save as playable game (.html)</button>
           <button onClick=${() => { setMenu(false); if (confirm('Replace the current project with the sample game?')) { snapshot(); setGame({ ...clone(SAMPLE_GAME), assets3d: clone(SAMPLE_3D) }); setSel('s1'); } }}><i class="ph ph-arrow-counter-clockwise"></i>Reset to sample game</button>
         </div>`}
-        <input type="file" accept=".json,application/json" ref=${importRef} onChange=${importProject} style="display:none" />
       </div>
+      <button class="btn btn-primary" onClick=${openProject} title="Open a saved project (Ctrl+O)"><i class="ph ph-folder-open"></i>Open</button>
+      <input type="file" accept=".json,application/json" ref=${importRef} onChange=${importProject} style="display:none" />
     </header>
     <div class="cols">
       <${Sidebar} ...${ctx} />

@@ -159,6 +159,9 @@ select.input { appearance: auto; }
 .menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 40; min-width: 240px; padding: 6px; border-radius: var(--radius-md); background: var(--color-surface); box-shadow: var(--shadow-lg); display: flex; flex-direction: column; }
 .menu button { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: none; background: none; color: var(--color-text); font-size: 13px; text-align: left; border-radius: 6px; cursor: pointer; }
 .menu button:hover { background: var(--color-neutral-800); }
+.split { display: flex; }
+.split > .btn:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.split-caret { padding-inline: 6px; border-left: none; border-top-left-radius: 0; border-bottom-left-radius: 0; }
 .menu .kbd { margin-left: auto; font-size: 10px; color: var(--color-neutral-400); }
 .save-state { font-size: 11px; color: var(--color-neutral-400); white-space: nowrap; }
 .save-state.clean { color: #7ee2a8; }
