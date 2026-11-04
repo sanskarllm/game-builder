@@ -76,7 +76,7 @@ characters/   ${counts.characters} character images (.svg vector art and .png, o
 backgrounds/  ${counts.backgrounds} background images (.svg and .png)
 music/        ${counts.music} tracks as .wav (composed by Meta AI) or your uploaded audio
 project/      the Game Forge project (.gameforge.json) — open it in Game Forge with Open
-games/        playable games: the story game${counts.code ? ' and the full game coded by Meta AI' : ''} (.html, open in a browser)
+games/        playable novels: the 2D novel${counts.code ? ' and the 3D novel built by Meta AI' : ''} (.html, open in a browser)
 
 Using the 3D models
 - Blender: File > Import > glTF 2.0 (.glb/.gltf).
@@ -120,8 +120,8 @@ export async function assetPack(game, FP, { exportGLB, storyHtml, codeHtml, proj
   }
   const slug = fileName(game.title).toLowerCase().replace(/\s+/g, '_');
   add(`project/${slug}.gameforge.json`, project);
-  if (storyHtml) add(`games/${slug}-story.html`, storyHtml);
-  if (codeHtml) add(`games/${slug}-game.html`, codeHtml);
+  if (storyHtml) add(`games/${slug}-2d-novel.html`, storyHtml);
+  if (codeHtml) add(`games/${slug}-3d-novel.html`, codeHtml);
   add('README.txt', README(game, counts));
   return { blob: zip(files), counts };
 }

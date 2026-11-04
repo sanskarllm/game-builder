@@ -1,53 +1,46 @@
-// Full Game: Meta AI (Muse Wonder by default) writes a complete, playable
-// browser game as one HTML file. The game can use this project's assets
-// through window.FORGE: 3D models (.glb), 2D art, music and story.
+// 3D Novel: Meta AI (Muse Wonder by default) makes an interactive 3D story
+// game as one HTML file: a world the player explores, where clicking on
+// people, buildings and objects is how the story moves on. It has its own
+// story; the 2D novel can be shared as inspiration. The project's 3D models
+// (SAM 3D Body people included) are there for it to use.
 import { llama, codeModel } from './ai.js';
 
 export const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.160.0/';
 const IMPORTMAP = `<script type="importmap">{"imports":{"three":"${THREE_URL}build/three.module.js","three/addons/":"${THREE_URL}examples/jsm/"}}</script>`;
 
-export const GENRES = ['3D adventure', '3D platformer', 'Top-down action', 'Side-scrolling platformer', 'Racing', 'Puzzle', 'Cooking / management', 'Tower defense', 'Survival', 'Endless runner', 'Visual novel with mini-games'];
+// ---------- what Muse Wonder is told ----------
+// Facts only: what the author wants, what it can use and how the file runs.
+// Every design decision is the model's. The author can edit or replace this
+// whole prompt in the 3D Novel panel ("My own prompt").
+export const DEFAULT_PROMPT = `You are making an interactive 3D story game for the browser, for Game Forge: a 3D world the player explores, where clicking on people, buildings and objects is how they talk, make choices and move the story on. The story, the world, how it looks and plays, and how it is coded are up to you.
 
-// ---------- the prompt ----------
-function systemPrompt(view) {
-  return `You are Forge Coder, a senior game developer powered by Meta AI. You write complete, polished, bug-free browser games.
-Reply with ONE complete HTML file and nothing else: start with <!DOCTYPE html> and end with </html>. No markdown fences, no explanations.
+What you can use (all optional):
+- FORGE.models: [{ name, cat, height }] the author's 3D models (cat is Human, Building or Prop). await FORGE.loadModel(name) gives a new THREE.Group copy, in metres, standing on y = 0. Human models are scanned SAM 3D Body meshes (posed, untextured, facing +Z), good starting points for people that you can change however you like. FORGE.dressBody(group, { skin, hair, top, bottom, shoes, coat }) colours one by body region, if that helps.
+- FORGE.story: the author's 2D visual novel, when they share it, as inspiration. Your 3D story does not have to follow it. Shape: { title, logline, start, characters: [{ name, role, desc, color, model }], locations: [{ name, desc }], scenes: [{ id, title, location, music, chars, lines: [{ who, text }], choices: [{ text, to }] }] }, or null.
+- FORGE.image(name): the 2D art for a character or location, as a URL. FORGE.music lists soundtrack names; FORGE.playMusic(name) and FORGE.stopMusic() play them.
 
-Technical rules:
-- Everything lives in this one file: inline <style> and <script type="module">. No other files; no images, fonts or sounds to download.
-- ${view === '2D'
-    ? '2D with the Canvas 2D API, no libraries.'
-    : '3D with three.js 0.160: import * as THREE from "three"; addons from "three/addons/…" (for example "three/addons/loaders/GLTFLoader.js"). An import map for these is added for you: do not write your own import map and do not load three.js any other way.'}
-- The canvas fills the window and handles resize and devicePixelRatio. Use requestAnimationFrame with delta time (clamp big jumps).
-- A title screen with the game's name, a one-line goal and the controls; a key press or click starts the game.
-- Real gameplay: a clear goal, rising challenge, score and HUD, win and lose conditions, and a victory / game-over screen with restart (R). Pause with P or Escape.
-- Keyboard (WASD / arrows + Space) and mouse controls; add simple on-screen touch buttons when 'ontouchstart' in window.
-- Sound effects with the Web Audio API, creating the AudioContext on the first user input.
-- Never use alert, prompt, confirm, localStorage, cookies or network requests. Guard risky code so one error cannot freeze the game.
-- About 600–1500 lines of clean, commented code. Make it look good: a cohesive colour palette, ${view === '2D' ? 'readable sprites drawn with canvas shapes' : 'lighting and shadows'}, juicy feedback (particles, screen shake, easing).
+How it runs: reply with one complete HTML file, from <!DOCTYPE html> to </html>, and nothing else. It runs in a sandboxed iframe with an import map for three.js 0.160 ("three" and "three/addons/…") already added. There is no network, storage, cookies or alert/prompt/confirm in that sandbox.`;
 
-This project's assets are ready in window.FORGE before your script runs:
-- FORGE.models: [{name, cat, height}] 3D models (cat is Building, Human or Prop). await FORGE.loadModel(name) returns a new THREE.Group copy, in metres, Y up, standing on y = 0. Use them for the player, characters, buildings and props where they fit, and build everything else from primitives.
-- FORGE.image(name) returns an image URL for a 2D character or background (use with new Image() or THREE.TextureLoader).
-- FORGE.playMusic(name) / FORGE.stopMusic() play the project's soundtrack (call after the first user input). FORGE.music lists the track names.
-- FORGE.story: {title, logline, characters: [{name, role, desc}]} for names and flavour text.
-If an asset is missing or fails to load, fall back to primitives: a missing asset must never stop the game.`;
+// The author's request plus a summary of what is available.
+export function brief(game, { idea, useStory, useAssets, refs } = {}) {
+  const models = useAssets === false ? [] : (game.assets3d || []).filter(a => a.glb || (a.parts || []).length);
+  return [
+    idea ? 'The author wants: ' + idea : `The author left the idea to you. The project is called "${game.title}".`,
+    refs && refs.length ? `Attached: ${refs.length} reference image${refs.length > 1 ? 's' : ''} from the author, showing the kind of look they have in mind.` : '',
+    'Their 3D models:\n' + (models.map(a => `- "${a.name}" (${a.cat}${a.source === 'sam3d' ? (a.kind === 'body' ? ', SAM 3D Body person' : ', SAM 3D Objects scan') : ', built from shapes'})`).join('\n') || '- none'),
+    useStory ? `Their 2D novel is shared in FORGE.story: "${game.title}"${game.logline ? ': ' + game.logline : ''} (${(game.scenes || []).length} scenes; characters: ${(game.characters || []).map(c => c.name).join(', ') || 'none'}).` : 'No 2D novel is shared (FORGE.story is null).',
+  ].filter(Boolean).join('\n\n');
 }
 
-// What the model is told about the project (names only, no file data).
-export function manifest(game, useAssets) {
-  if (!useAssets) return 'Do not use FORGE assets for this game; build everything yourself.';
-  const models = (game.assets3d || []).filter(a => a.glb || (a.parts || []).length);
-  const lines = [
-    `Story: "${game.title}"${game.logline ? ' — ' + game.logline : ''}`,
-    'Characters: ' + ((game.characters || []).map(c => `${c.name} (${c.role || 'character'}: ${String(c.desc || '').slice(0, 90)})`).join('; ') || 'none'),
-    '3D models: ' + (models.map(a => `"${a.name}" (${a.cat}${a.source === 'sam3d' ? ', scanned body mesh' : ''})`).join(', ') || 'none'),
-    'Backgrounds (2D images): ' + ((game.backgrounds || []).map(b => `"${b.name}"`).join(', ') || 'none'),
-    'Music: ' + ((game.music || []).map(m => `"${m.name}" (${m.mood || ''})`).join(', ') || 'none'),
-  ];
-  return lines.join('\n');
+// Each 2D character's 3D body (for FORGE.story when it is shared): the one
+// chosen with model3d, else a Human model whose name starts with the name.
+export function castOf(game) {
+  const humans = (game.assets3d || []).filter(a => a.cat === 'Human' && (a.glb || (a.parts || []).length));
+  return (game.characters || []).map(c => {
+    const pick = c.model3d === '' ? null : humans.find(a => a.name === c.model3d) || humans.find(a => a.name.toLowerCase().startsWith(String(c.name).toLowerCase()));
+    return { name: c.name, role: c.role, desc: c.desc, color: c.color, model: pick ? pick.name : null };
+  });
 }
-
 export function extractHtml(text) {
   let t = String(text || '').trim().replace(/^```(?:html)?\s*/i, '').replace(/```\s*$/, '');
   const a = t.search(/<!doctype html|<html[\s>]/i);
@@ -58,15 +51,19 @@ export function extractHtml(text) {
 }
 const complete = t => /<\/html>\s*$/i.test(t);
 
-// Writes (or rewrites) the game. Long replies that get cut off are continued
-// up to two times. onStage(text) reports progress.
-export async function codeGame({ brief, genre, view, game, useAssets, current, change, error, onStage }) {
+// Writes (or rewrites) the 3D novel. Long replies that get cut off are
+// continued up to two times. onStage(text) reports progress.
+// prompt: the author's own system prompt ("My own prompt"), else DEFAULT_PROMPT.
+// refs: reference image data URLs, sent to the model with the request.
+export async function codeGame({ idea, useStory, useAssets, refs, prompt, game, current, change, error, onStage }) {
   const model = codeModel();
+  const facts = brief(game, { idea, useStory, useAssets, refs });
   const user = current
-    ? `Here is the current game:\n\n${current}\n\n${error ? 'It shows this error while running:\n' + error + '\n\nFix the cause' : 'Change request: ' + change}\n\nKeep everything else that works. Reply with the complete updated HTML file.`
-    : `Make this game.\nGenre: ${genre}. View: ${view}.\nGame idea: ${brief}\n\nProject assets:\n${manifest(game, useAssets)}`;
-  const messages = [{ role: 'system', content: systemPrompt(view) }, { role: 'user', content: user }];
-  onStage && onStage(`${model} is writing the game…`);
+    ? `Here is the current game:\n\n${current}\n\n${error ? 'It shows this error while running:\n' + error + '\n\nFix the cause.' : 'The author asks: ' + change}\n\nReply with the complete updated HTML file.\n\nFor reference:\n${facts}`
+    : facts;
+  const content = refs && refs.length ? [{ type: 'text', text: user }, ...refs.map(url => ({ type: 'image_url', image_url: { url } }))] : user;
+  const messages = [{ role: 'system', content: (prompt && prompt.trim()) || DEFAULT_PROMPT }, { role: 'user', content }];
+  onStage && onStage(`${model} is building the 3D novel…`);
   let r = await llama(messages, { model, maxTokens: 24000, temperature: 0.6, effort: 'medium', full: true });
   let out = extractHtml(r.text);
   for (let i = 0; i < 2 && !complete(out); i++) {
@@ -77,7 +74,7 @@ export async function codeGame({ brief, genre, view, game, useAssets, current, c
     out = extractHtml(out);
   }
   if (!/<script/i.test(out)) throw new Error(model + ' did not return a game (no code in the reply).');
-  if (!complete(out)) throw new Error(model + ' ran out of room before finishing the game. Try a smaller idea, or a 2D game.');
+  if (!complete(out)) throw new Error(model + ' ran out of room before finishing. Try again.');
   return { html: out, model };
 }
 
@@ -109,8 +106,14 @@ export const trackSeq = (t, FP) => (t.notes && t.notes.length ? { bpm: t.bpm || 
 // ---------- assets handed to the game ----------
 // exportGLB(asset) → Blob. Every 3D model goes in as a .glb data URL.
 const blobToDataUrl = b => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(b); });
-export async function forgeData(game, FP, exportGLB, useAssets) {
-  const data = { title: game.title, story: { title: game.title, logline: game.logline || '', characters: (game.characters || []).map(c => ({ name: c.name, role: c.role, desc: c.desc })) }, models: [], images: {}, music: [] };
+const PALETTE = ['#9184d9', '#d0618a', '#5aa6a0', '#d8a657', '#7aa2f7', '#c678dd'];
+export async function forgeData(game, FP, exportGLB, useAssets, useStory) {
+  const scenes = (game.scenes || []).map(s => ({ id: s.id, title: s.title, location: s.bg, music: s.music || '', transition: s.transition || 'Fade',
+    chars: (s.chars || []).map(c => ({ name: c.name, expr: c.expr || 'neutral', pos: c.pos || 'C' })), lines: (s.lines || []).map(l => ({ who: l.who, text: l.text })), choices: (s.choices || []).map(c => ({ text: c.text, to: c.to })) }));
+  const story = { title: game.title, logline: game.logline || '', start: scenes[0] ? scenes[0].id : null,
+    characters: castOf(game).map(c => ({ ...c, color: c.color || PALETTE[[...String(c.name)].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 7) % PALETTE.length], model: useAssets ? c.model : null })),
+    locations: (game.backgrounds || []).map(b => ({ name: b.name, desc: b.desc || b.name })), scenes };
+  const data = { title: game.title, story: useStory ? story : null, models: [], images: {}, music: [] };
   if (!useAssets) return data;
   for (const a of game.assets3d || []) {
     if (a.busy || !(a.glb || (a.parts || []).length)) continue;
@@ -147,6 +150,43 @@ function runtime() {
       return g;
     })();
     return (await cache[m.name]).clone(true);
+  };
+  // Dress a SAM 3D Body mesh as a character: vertex colours by body region,
+  // so the real body shape stays visible. Call right after loadModel, before
+  // moving or rotating it (the body faces +Z).
+  F.dressBody = function (obj, o) {
+    o = o || {};
+    const hex = (c, d) => { const s = String(c || d).replace('#', ''); const n = parseInt(s.length === 3 ? s.replace(/./g, ch => ch + ch) : s, 16); return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255]; };
+    const C = { skin: hex(o.skin, '#d9a989'), hair: hex(o.hair, '#3b2a20'), top: hex(o.top, '#5b6ee1'), bottom: hex(o.bottom, '#34374a'), shoes: hex(o.shoes, '#22232b') };
+    const coatTo = o.coat ? 0.3 : 0.5;
+    obj.updateMatrixWorld(true);
+    let minY = Infinity, maxY = -Infinity, sx = 0, sz = 0, n = 0;
+    const meshes = []; obj.traverse(m => { if (m.isMesh && m.geometry && m.geometry.attributes.position) meshes.push(m); });
+    const world = (m, i, out) => { const p = m.geometry.attributes.position, e = m.matrixWorld.elements, x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+      out[0] = e[0] * x + e[4] * y + e[8] * z + e[12]; out[1] = e[1] * x + e[5] * y + e[9] * z + e[13]; out[2] = e[2] * x + e[6] * y + e[10] * z + e[14]; return out; };
+    const v = [0, 0, 0];
+    for (const m of meshes) for (let i = 0; i < m.geometry.attributes.position.count; i++) { world(m, i, v); minY = Math.min(minY, v[1]); maxY = Math.max(maxY, v[1]); sx += v[0]; sz += v[2]; n++; }
+    if (!n) return obj;
+    const H = Math.max(maxY - minY, 1e-6), cx = sx / n, cz = sz / n;
+    for (const m of meshes) {
+      const count = m.geometry.attributes.position.count, col = new Float32Array(count * 3);
+      for (let i = 0; i < count; i++) {
+        world(m, i, v); const t = (v[1] - minY) / H, r = Math.hypot(v[0] - cx, v[2] - cz) / H;
+        let c = C.shoes;
+        if (t >= 0.94) c = C.hair;
+        else if (t >= 0.87) c = v[2] > cz ? C.skin : C.hair;
+        else if (t >= 0.82) c = C.skin;
+        else if (r > 0.3 && t > 0.45) c = C.skin; // hands at the end of outstretched arms
+        else if (t >= coatTo) c = C.top;
+        else if (t >= 0.06) c = C.bottom;
+        col.set(c, i * 3);
+      }
+      m.geometry = m.geometry.clone(); m.geometry.setAttribute('color', new m.geometry.attributes.position.constructor(col, 3));
+      m.material = m.material.clone(); m.material.vertexColors = true; if ('color' in m.material) m.material.color.setRGB(1, 1, 1);
+      if ('roughness' in m.material) m.material.roughness = 0.75; if ('metalness' in m.material) m.material.metalness = 0;
+      m.geometry.computeVertexNormals && m.geometry.computeVertexNormals();
+    }
+    return obj;
   };
   F.image = name => F.images[name] || F.images[Object.keys(F.images).find(k => k.toLowerCase() === String(name).toLowerCase())] || null;
   let ctx, timer, master, audio;

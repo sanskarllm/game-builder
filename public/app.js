@@ -69,9 +69,9 @@ const TABS = {
   '3d': [['Building', 'Buildings', 'ph-house'], ['Human', 'Humans', 'ph-person'], ['Prop', 'Props', 'ph-lamp']],
 };
 const MODES = [
-  ['build', 'Story Builder', 'ph-book-open-text', 'Scenes, characters, music'],
+  ['build', '2D Novel', 'ph-book-open-text', 'Write the story · 2D scenes'],
   ['3d', '3D Assets', 'ph-cube', 'Houses, people, props'],
-  ['code', 'Full Game', 'ph-game-controller', 'Meta AI codes a playable game'],
+  ['code', '3D Novel', 'ph-cube-focus', 'Explore and click through a 3D story'],
   ['play', 'Play & Polish', 'ph-play-circle', 'Playtest with Forge Assistant'],
 ];
 const ICON3D = { Building: 'ph-house', Human: 'ph-person', Prop: 'ph-lamp' };
@@ -178,9 +178,11 @@ function App() {
   // Image → 3D mesh with Meta's SAM 3D Body (people) or SAM 3D Objects
   // (anything), served by ./sam3d-service.
   const sam3dReady = !!(settings.sam3dUrl || (server && server.sam3dUrl));
-  async function makeFromImage({ name, cat, image, mask, textured, kind = 'body' }) {
+  // stay: keep the current view (the 3D Novel cast list scans from there).
+  async function makeFromImage({ name, cat, image, mask, textured, kind = 'body', stay, forChar }) {
     if (!sam3dReady) { setRight('settings'); notify('Add your SAM 3D service URL in the Meta AI tab first.', true); return; }
-    setMode('3d'); setTab(cat); setRight('edit');
+    if (!stay) { setMode('3d'); setTab(cat); setRight('edit'); }
+    if (forChar) update(g => { const c = g.characters.find(x => x.name === forChar); if (c) c.model3d = name; return g; });
     update(g => { g.assets3d = g.assets3d.filter(x => x.name !== name); g.assets3d.unshift({ name, cat, prompt: 'Reconstructed from an image', parts: [], source: 'sam3d', kind, busy: true }); return g; });
     setSel3d(name);
     try {
@@ -220,21 +222,21 @@ function App() {
   async function exportGame() {
     setMenu(false);
     download(slug(game.title) + '.html', new Blob([await storyPage(game)], { type: 'text/html' }));
-    notify('Saved a playable game: ' + slug(game.title) + '.html');
+    notify('Saved the 2D novel: ' + slug(game.title) + '.html');
   }
   // The coded game + this project's assets, as one page (played in the
-  // Full Game view and saved as a standalone .html).
+  // 3D Novel view and saved as a standalone .html).
   async function fullGamePage(g) {
     const V = await import('./viewer3d.js');
-    const data = await Coder.forgeData(g, FP, a => V.exportGLB(a), g.code.useAssets !== false);
+    const data = await Coder.forgeData(g, FP, a => V.exportGLB(a), g.code.useAssets !== false, !!g.code.useStory);
     return Coder.assemble(g.code.html, data);
   }
   async function exportFullGame() {
     setMenu(false);
     const g = gameRef.current;
-    if (!g.code || !g.code.html) { setMode('code'); setRight('edit'); return notify('No full game yet: describe one in Full Game and Meta AI codes it.', true); }
-    try { download(slug(g.title) + '-game.html', new Blob([await fullGamePage(g)], { type: 'text/html' })); notify('Saved the full game: ' + slug(g.title) + '-game.html'); }
-    catch (e) { notify('Could not save the game: ' + e.message, true); }
+    if (!g.code || !g.code.html) { setMode('code'); setRight('edit'); return notify('No 3D novel yet: open 3D Novel and build one with Meta AI.', true); }
+    try { download(slug(g.title) + '-3d.html', new Blob([await fullGamePage(g)], { type: 'text/html' })); notify('Saved the 3D novel: ' + slug(g.title) + '-3d.html'); }
+    catch (e) { notify('Could not save the 3D novel: ' + e.message, true); }
   }
   // Every asset in standard formats (.glb, .svg/.png, .wav), zipped for 3D software.
   async function exportPack() {
@@ -251,18 +253,19 @@ function App() {
     } catch (e) { /* toast shown */ }
     setBuilding(null);
   }
-  // ---- Full Game: Meta AI (Muse Wonder) writes a playable game as code ----
+  // ---- 3D Novel: Meta AI (Muse Wonder) builds the story as a 3D visual novel ----
   const [coding, setCoding] = useState(null); // progress text while Meta AI writes
   async function codeGame(opts) {
     if (!ensureAI() || coding) return;
     const g = gameRef.current, cur = g.code || {};
-    const spec = { brief: opts.brief != null ? opts.brief : cur.brief || '', genre: opts.genre || cur.genre || '3D adventure', view: opts.view || cur.view || '3D', useAssets: opts.useAssets != null ? opts.useAssets : cur.useAssets !== false };
+    const pick = (k, d) => (opts[k] != null ? opts[k] : cur[k] != null ? cur[k] : d);
+    const spec = { idea: pick('idea', ''), useStory: pick('useStory', false), useAssets: pick('useAssets', true), refs: pick('refs', []), promptMode: pick('promptMode', 'forge'), customPrompt: pick('customPrompt', '') };
     const revise = !!(opts.change || opts.error) && !!cur.html;
     setCoding('Starting…'); setMode('code');
     try {
-      const r = await runJob('Full game · ' + (opts.error ? 'fix error' : revise ? 'change' : spec.brief.slice(0, 36)), () => Coder.codeGame({ ...spec, game: g, current: revise ? cur.html : null, change: opts.change, error: opts.error, onStage: setCoding }));
-      update(x => { x.code = { ...spec, html: r.html, model: r.model, at: Date.now(), changes: revise ? [...(cur.changes || []), opts.error ? 'Fixed: ' + opts.error.slice(0, 80) : opts.change].slice(-12) : [] }; return x; }, true);
-      notify((revise ? 'Game updated by ' : 'Game written by ') + r.model + ' — Undo goes back');
+      const r = await runJob('3D novel · ' + (opts.error ? 'fix error' : revise ? 'change' : (spec.idea || g.title).slice(0, 36)), () => Coder.codeGame({ ...spec, prompt: spec.promptMode === 'own' ? spec.customPrompt : null, game: g, current: revise ? cur.html : null, change: opts.change, error: opts.error, onStage: setCoding }));
+      update(x => { x.code = { ...spec, kind: 'novel3d', html: r.html, model: r.model, at: Date.now(), changes: revise ? [...(cur.changes || []), opts.error ? 'Fixed: ' + opts.error.slice(0, 80) : opts.change].slice(-12) : [] }; return x; }, true);
+      notify((revise ? '3D novel updated by ' : '3D novel built by ') + r.model + ' — Undo goes back');
     } catch (e) { /* toast shown */ }
     setCoding(null);
   }
@@ -292,7 +295,7 @@ function App() {
     let raw, g; try { raw = JSON.parse(text); g = AI.normalizeGame(raw); } catch (e) { throw new Error('That file is not a Game Forge project.'); }
     if (!g.scenes.length) throw new Error('That file is not a Game Forge project.');
     if (!raw.assets3d) g.assets3d = clone(SAMPLE_3D); // older projects had no 3D library
-    if (raw.code && typeof raw.code.html === 'string') g.code = raw.code; // Full Game code
+    if (raw.code && typeof raw.code.html === 'string') g.code = raw.code; // 3D Novel code
     return g;
   }
   // ---- New project: a blank game. Asks to save first if there is unsaved work.
@@ -356,8 +359,8 @@ function App() {
         ${menu && html`<div class="menu" onMouseLeave=${() => setMenu(false)}>
           <button onClick=${() => saveProject(false)}><i class="ph ph-floppy-disk"></i>Save project <span class="kbd">Ctrl+S</span></button>
           <button onClick=${() => saveProject(true)}><i class="ph ph-copy"></i>Save project as… <span class="kbd">Ctrl+Shift+S</span></button>
-          <button onClick=${exportGame}><i class="ph ph-globe"></i>Save as playable game (.html)</button>
-          <button onClick=${exportFullGame} disabled=${!(game.code && game.code.html)} title=${game.code && game.code.html ? 'The game Meta AI coded in Full Game' : 'Make one in Full Game first'}><i class="ph ph-game-controller"></i>Save full game (.html)</button>
+          <button onClick=${exportGame}><i class="ph ph-globe"></i>Save 2D novel (.html)</button>
+          <button onClick=${exportFullGame} disabled=${!(game.code && game.code.html)} title=${game.code && game.code.html ? 'The 3D novel Meta AI built' : 'Build one in 3D Novel first'}><i class="ph ph-cube-focus"></i>Save 3D novel (.html)</button>
           <button onClick=${exportPack} title="Every asset as .glb, .svg/.png and .wav for Blender, Unity, Godot or Unreal"><i class="ph ph-package"></i>Export asset pack (.zip)</button>
           <button onClick=${() => { setMenu(false); if (confirm('Replace the current project with the sample game?')) { snapshot(); setGame({ ...clone(SAMPLE_GAME), assets3d: clone(SAMPLE_3D) }); setSel('s1'); } }}><i class="ph ph-arrow-counter-clockwise"></i>Reset to sample game</button>
         </div>`}
@@ -389,7 +392,7 @@ function App() {
 // ======================================================================
 function Sidebar(p) {
   const { game, mode, setMode, tab, setTab, update, updScene, cur, setDialog, paintBg, paintChar, compose, makeFromImage, sel3d, setSel3d, setRight, notify } = p;
-  const is3d = mode === '3d' || mode === 'code'; // Full Game shows the 3D library its game can use
+  const is3d = mode === '3d' || mode === 'code'; // 3D Novel shows the 3D library its cast and sets use
   const tabs = TABS[is3d ? '3d' : 'build'];
   const activeTab = tabs.some(t => t[0] === tab) ? tab : tabs[0][0];
   const fileRef = useRef();
@@ -720,9 +723,10 @@ function SamEngines({ setRight, setDialog, notify }) {
 }
 
 // ======================================================================
-// Full Game: the game Meta AI coded, running in a sandboxed frame. The frame
-// has no access to Game Forge (no same-origin), so generated code can never
-// read your API key or project.
+// 3D Novel: an interactive 3D story game Meta AI built — the player explores
+// and clicks on people, buildings and objects to move the story on. It runs in
+// a sandboxed frame (no same-origin), so generated code can never read your
+// API key or project.
 function CodeView(p) {
   const { game, coding, codeGame, fullGamePage, exportFullGame, aiReady } = p;
   const code = game.code && game.code.html ? game.code : null;
@@ -733,7 +737,7 @@ function CodeView(p) {
   const [showCode, setShowCode] = useState(false);
   useEffect(() => {
     let dead = false; setErr(null); setPage(null);
-    if (code) fullGamePage(game).then(h => { if (!dead) setPage(h); }).catch(e => !dead && setErr('Could not prepare the game: ' + e.message));
+    if (code) fullGamePage(game).then(h => { if (!dead) setPage(h); }).catch(e => !dead && setErr('Could not prepare the 3D novel: ' + e.message));
     return () => { dead = true; };
   }, [code && code.at, run]);
   useEffect(() => {
@@ -743,74 +747,120 @@ function CodeView(p) {
   const lines = code ? code.html.split('\n').length : 0;
   return html`<section style="min-width:0;padding:var(--space-6);display:flex;flex-direction:column;gap:var(--space-3);min-height:0">
     <div class="row" style="gap:var(--space-3);flex-wrap:wrap">
-      <span class="kicker accent">Full game</span><span style="font-size:15px;font-weight:500">${game.title}</span>
-      ${code && html`<span class="tag tag-meta"><i class="ph ph-sparkle"></i>${code.model}</span><span class="tag tag-neutral">${code.view} · ${code.genre} · ${lines.toLocaleString()} lines</span>`}
+      <span class="kicker accent">3D novel</span><span style="font-size:15px;font-weight:500">${game.title}</span>
+      ${code && html`<span class="tag tag-meta"><i class="ph ph-sparkle"></i>${code.model}</span><span class="tag tag-neutral">${lines.toLocaleString()} lines of code</span>`}
       <div style="flex:1"></div>
       ${code && html`
-        <button class="btn btn-secondary" onClick=${() => setRun(r => r + 1)} title="Restart the game"><i class="ph ph-arrow-clockwise"></i>Restart</button>
+        <button class="btn btn-secondary" onClick=${() => setRun(r => r + 1)} title="Start again from the beginning"><i class="ph ph-arrow-clockwise"></i>Restart</button>
         <button class="btn btn-secondary" onClick=${() => frame.current && frame.current.requestFullscreen && frame.current.requestFullscreen()}><i class="ph ph-corners-out"></i>Full screen</button>
         <button class="btn btn-secondary" onClick=${() => setShowCode(!showCode)}><i class="ph ph-code"></i>${showCode ? 'Hide code' : 'Code'}</button>
-        <button class="btn btn-primary" onClick=${exportFullGame}><i class="ph ph-download-simple"></i>Save game (.html)</button>`}
+        <button class="btn btn-primary" onClick=${exportFullGame}><i class="ph ph-download-simple"></i>Save 3D novel (.html)</button>`}
     </div>
     <div class="gameframe">
-      ${page && html`<iframe key=${run + ':' + code.at} ref=${frame} srcdoc=${page} sandbox="allow-scripts allow-pointer-lock" allow="fullscreen; autoplay; gamepad" title="Full game" onLoad=${() => { try { frame.current.focus(); } catch (e) { /* fine */ } }}></iframe>`}
-      ${!code && !coding && html`<div class="busy-veil" style="background:transparent"><div class="stack" style="align-items:center;gap:10px;max-width:460px;text-align:center">
-        <i class="ph ph-game-controller" style="font-size:34px;color:var(--color-accent)"></i>
-        <span style="font-size:15px;font-weight:500">Make a full, playable game with Meta AI</span>
-        <span class="muted" style="font-size:12px">Describe it in the panel on the right. Muse Wonder writes the whole game: gameplay, controls, score, levels and sound, using your 3D models, art and music. Play it here, ask for changes, and save it as one .html file.</span>
+      ${page && html`<iframe key=${run + ':' + code.at} ref=${frame} srcdoc=${page} sandbox="allow-scripts allow-pointer-lock" allow="fullscreen; autoplay; gamepad" title="3D novel" onLoad=${() => { try { frame.current.focus(); } catch (e) { /* fine */ } }}></iframe>`}
+      ${!code && !coding && html`<div class="busy-veil" style="background:transparent"><div class="stack" style="align-items:center;gap:10px;max-width:480px;text-align:center">
+        <i class="ph ph-cube-focus" style="font-size:34px;color:var(--color-accent)"></i>
+        <span style="font-size:15px;font-weight:500">An interactive 3D story you click through</span>
+        <span class="muted" style="font-size:12px">Muse Wonder builds a 3D world to explore. Click on people, buildings and objects to talk, choose and move the story on. Describe your idea on the right; your 3D models, including SAM 3D Body people, are there for it to use.</span>
         ${!aiReady && html`<span style="font-size:12px;color:var(--color-danger)">Add your Meta AI key in the Meta AI tab first.</span>`}
       </div></div>`}
-      ${code && !page && !err && !coding && html`<div class="busy-veil"><i class="ph ph-spinner spin"></i> Loading the game…</div>`}
-      ${coding && html`<div class="busy-veil"><div class="stack" style="align-items:center;gap:10px"><i class="ph ph-code spin" style="font-size:26px;color:var(--color-accent)"></i>${coding}<span class="muted" style="font-size:11px">A full game takes a few minutes · Powered by Meta AI</span></div></div>`}
+      ${code && !page && !err && !coding && html`<div class="busy-veil"><i class="ph ph-spinner spin"></i> Loading the 3D novel…</div>`}
+      ${coding && html`<div class="busy-veil"><div class="stack" style="align-items:center;gap:10px"><i class="ph ph-cube-focus spin" style="font-size:26px;color:var(--color-accent)"></i>${coding}<span class="muted" style="font-size:11px">This takes a few minutes · Powered by Meta AI</span></div></div>`}
     </div>
-    ${err && html`<div class="note" style="border-color:var(--color-danger)"><i class="ph ph-warning" style="color:var(--color-danger)"></i><span style="flex:1;font-size:12px">The game hit an error: <span class="mono">${err}</span></span>
+    ${err && html`<div class="note" style="border-color:var(--color-danger)"><i class="ph ph-warning" style="color:var(--color-danger)"></i><span style="flex:1;font-size:12px">The 3D novel hit an error: <span class="mono">${err}</span></span>
       <button class="btn btn-solid" disabled=${!!coding} onClick=${() => codeGame({ error: err })}><i class="ph ph-wrench"></i>Fix with Meta AI</button></div>`}
     ${showCode && code && html`<textarea class="input mono codebox" readonly value=${code.html}></textarea>`}
-    <span class="muted" style="font-size:11px">Click the game to give it the keyboard. It runs sandboxed: it cannot see Game Forge, your key or your files.</span>
+    <span class="muted" style="font-size:11px">Click inside to play. It runs sandboxed: it cannot see Game Forge, your key or your files.</span>
   </section>`;
 }
 
-const CODE_IDEAS = ['Make it harder over time', 'Add a boss fight at the end', 'Add a second level', 'Use my 3D models for the enemies', 'Add a minimap', 'Smoother controls and camera', 'Add collectibles and a combo meter', 'Add a story intro using my characters'];
+// Optional starting points for the idea box: clicking one adds its text, which
+// the author can edit. Nothing is sent unless they pick one.
+const NOVEL_STARTERS = [
+  ['Isometric room diorama', 'Show each location as an isometric cut-away room, like a dollhouse seen from above at an angle: the floor and two back walls, with no ceiling or front walls, so the whole room is visible at once. Fill it with detailed furniture and props (shelves, posters, lamps, plants, beds, sofas, desks, tables). The characters stand and sit in the room. The player clicks people to talk and objects to look at, and the choices in those conversations move the story on to the next room or scene.'],
+  ['Cozy café or shop', 'Set it in an isometric cut-away café or shop with a counter, tables and chairs, shelves of goods, hanging lights, plants and framed pictures, in warm evening light. Customers and staff each have a story; click them to talk, and what you learn opens new choices.'],
+  ['Investigation room', 'Set it in an isometric cut-away room full of clues: an evidence board with notes and string, lockers, a desk, a bed, a sofa and scattered belongings. Click objects to collect clues and click people to question them; the clues you hold change what you can say and how the story ends.'],
+  ['Rooms to explore', 'Make several isometric cut-away rooms joined by doors. Click a door to move to the next room. Each room has people to talk to and objects to use, and the story moves on as you go room to room.'],
+];
 function EditCode(p) {
-  const { game, coding, codeGame, settings, setSettings, prov } = p;
+  const { game, coding, codeGame, settings, setSettings, prov, setDialog } = p;
   const code = game.code || {};
   const has = !!code.html;
-  const story = [game.title, game.logline].filter(Boolean).join(': ');
-  const [brief, setBrief] = useState(code.brief || (story ? `A game set in the world of ${story}` : ''));
-  const [genre, setGenre] = useState(code.genre || '3D adventure');
-  const [view, setView] = useState(code.view || '3D');
+  const [idea, setIdea] = useState(code.idea || '');
   const [useAssets, setUseAssets] = useState(code.useAssets !== false);
+  const [useStory, setUseStory] = useState(!!code.useStory);
+  const [refs, setRefs] = useState(code.refs || []);
+  const [promptMode, setPromptMode] = useState(code.promptMode || 'forge');
+  const [customPrompt, setCustomPrompt] = useState(code.customPrompt || Coder.DEFAULT_PROMPT);
+  const [showPrompt, setShowPrompt] = useState(false);
   const [change, setChange] = useState('');
+  // Reference images: scaled to 1024 px JPEG so they stay small in the project.
+  async function addRefs(e) {
+    const files = [...e.target.files].slice(0, 4 - refs.length); e.target.value = '';
+    const out = [];
+    for (const f of files) {
+      const url = await readFile(f);
+      out.push(await new Promise(res => { const im = new Image(); im.onload = () => { const s = Math.min(1, 1024 / Math.max(im.width, im.height)); const c = document.createElement('canvas'); c.width = Math.round(im.width * s); c.height = Math.round(im.height * s); c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); res(c.toDataURL('image/jpeg', 0.85)); }; im.onerror = () => res(null); im.src = url; }));
+    }
+    setRefs(r => [...r, ...out.filter(Boolean)].slice(0, 4));
+  }
   const [fresh, setFresh] = useState(!has);
   useEffect(() => { if (!has) setFresh(true); }, [has]);
-  const models = game.assets3d.filter(a => a.glb || (a.parts || []).length).length;
   const model = AI.codeModel();
-  const pickGenre = g => { setGenre(g); setView(/^3D|Racing|Survival/i.test(g) ? '3D' : '2D'); };
+  const models = game.assets3d.filter(a => a.glb || (a.parts || []).length);
+  const people = models.filter(a => a.cat === 'Human');
   return html`
     <div class="stack" style="gap:4px">
-      <div class="row"><span class="kicker accent" style="flex:1">Full game · code</span><span class="tag tag-meta"><i class="ph ph-sparkle"></i>${model}</span></div>
-      <span style="font-size:12px;color:var(--color-neutral-300)">Meta AI writes a complete game you can play, change by asking, and save as one .html file that runs in any browser.</span>
+      <div class="row"><span class="kicker accent" style="flex:1">3D novel</span><span class="tag tag-meta"><i class="ph ph-sparkle"></i>${model}</span></div>
+      <span style="font-size:12px;color:var(--color-neutral-300)">A 3D world you explore, where clicking on people, buildings and objects moves the story on. Its story is its own.</span>
     </div>
     ${has && html`<div class="stack" style="gap:6px">
-      <span class="label">Change the game</span>
-      <textarea class="input" style="min-height:70px" placeholder="e.g. add a double jump and make the coins spin" value=${change} onInput=${e => setChange(e.target.value)}></textarea>
-      <div class="chips">${CODE_IDEAS.map(s => html`<button class="chip" onClick=${() => setChange(s)}>${s}</button>`)}</div>
+      <span class="label">Change it</span>
+      <textarea class="input" style="min-height:64px" value=${change} onInput=${e => setChange(e.target.value)}></textarea>
       <button class="btn btn-solid" disabled=${!!coding || !change.trim()} onClick=${() => { codeGame({ change: change.trim() }); setChange(''); }}><i class=${'ph ' + (coding ? 'ph-spinner spin' : 'ph-magic-wand')}></i>${coding ? 'Meta AI is working…' : 'Apply with Meta AI'}</button>
       ${(code.changes || []).length > 0 && html`<span class="muted" style="font-size:11px">Changes so far: ${code.changes.join(' · ')}</span>`}
     </div>
     <div class="rule"></div>
-    <button class="btn btn-ghost" style="align-self:flex-start;font-size:12px" onClick=${() => setFresh(!fresh)}><i class=${'ph ' + (fresh ? 'ph-caret-down' : 'ph-caret-right')}></i>Start over with a new game</button>`}
+    <button class="btn btn-ghost" style="align-self:flex-start;font-size:12px" onClick=${() => setFresh(!fresh)}><i class=${'ph ' + (fresh ? 'ph-caret-down' : 'ph-caret-right')}></i>Build a new one</button>`}
     ${fresh && html`<div class="stack" style="gap:10px">
-      <div class="field"><label>Game idea</label><textarea class="input" style="min-height:96px" placeholder="e.g. Keep the lighthouse lit through a stormy night: climb the tower, fix the lamp and fend off sea creatures" value=${brief} onInput=${e => setBrief(e.target.value)}></textarea></div>
-      <div class="field"><label>Genre</label><select class="input" value=${genre} onChange=${e => pickGenre(e.target.value)}>${Coder.GENRES.map(g => html`<option value=${g} selected=${g === genre}>${g}</option>`)}</select></div>
-      <div class="row"><span class="label" style="flex:1">View</span><div class="seg">${['3D', '2D'].map(v => html`<button class=${'seg-opt' + (view === v ? ' on' : '')} onClick=${() => setView(v)}>${v}</button>`)}</div></div>
-      <label class="check" style="font-size:12px"><input type="checkbox" checked=${useAssets} onChange=${e => setUseAssets(e.target.checked)} />Use this project's assets (${models} 3D models, ${game.characters.length} characters, ${game.backgrounds.length} backgrounds, ${game.music.length} tracks)</label>
-      <div class="field"><label>Model for game code</label><input class="input mono" list="codemodels" style="font-size:12px" placeholder=${(prov && prov.codeModel) || settings.model} value=${settings.codeModel || ''} onInput=${e => setSettings({ ...settings, codeModel: e.target.value.trim() })} />
+      <div class="stack" style="gap:6px">
+        <span class="label">Prompt</span>
+        <div class="seg" style="align-self:flex-start">
+          <button class=${'seg-opt' + (promptMode === 'forge' ? ' on' : '')} onClick=${() => setPromptMode('forge')}>Game Forge's + my idea</button>
+          <button class=${'seg-opt' + (promptMode === 'own' ? ' on' : '')} onClick=${() => setPromptMode('own')}>My own prompt</button>
+        </div>
+        ${promptMode === 'forge' ? html`
+          <span class="muted" style="font-size:11px">Game Forge's prompt tells Muse Wonder what it can use and how the file runs; your idea goes with it.</span>
+          <button class="btn btn-ghost" style="align-self:flex-start;font-size:12px" onClick=${() => setShowPrompt(!showPrompt)}><i class=${'ph ' + (showPrompt ? 'ph-caret-down' : 'ph-caret-right')}></i>${showPrompt ? 'Hide' : 'See'} Game Forge's prompt</button>
+          ${showPrompt && html`<textarea class="input mono" readonly style="min-height:200px;font-size:11px" value=${Coder.DEFAULT_PROMPT}></textarea>`}` : html`
+          <span class="muted" style="font-size:11px">Write the whole prompt yourself, or edit Game Forge's. Your idea, the list of your 3D models and your reference images are still sent with it.</span>
+          <textarea class="input mono" style="min-height:220px;font-size:11px" value=${customPrompt} onInput=${e => setCustomPrompt(e.target.value)}></textarea>
+          <div class="row" style="gap:6px"><button class="btn btn-ghost" style="font-size:12px" onClick=${() => setCustomPrompt(Coder.DEFAULT_PROMPT)}><i class="ph ph-arrow-counter-clockwise"></i>Start from Game Forge's</button><button class="btn btn-ghost" style="font-size:12px" onClick=${() => setCustomPrompt('')}><i class="ph ph-eraser"></i>Clear</button></div>`}
+      </div>
+      <div class="field"><label>Your idea (optional: leave it empty and Muse Wonder decides)</label><textarea class="input" style="min-height:96px" value=${idea} onInput=${e => setIdea(e.target.value)}></textarea></div>
+      <div class="stack" style="gap:4px">
+        <span class="muted" style="font-size:11px">Optional starting points: click one to add it to your idea, then edit it.</span>
+        <div class="chips">${NOVEL_STARTERS.map(([label, text]) => html`<button class="chip" title=${text} onClick=${() => setIdea(v => (v.trim() ? v.trim() + '\n\n' : '') + text)}>${label}</button>`)}</div>
+      </div>
+      <div class="stack" style="gap:6px">
+        <span class="label">Reference images · the look you have in mind (optional, up to 4)</span>
+        ${refs.length > 0 && html`<div class="row" style="gap:6px;flex-wrap:wrap">${refs.map((u, i) => html`<span key=${i} style="position:relative;display:inline-block">
+          <img src=${u} alt=${'Reference ' + (i + 1)} style="width:72px;height:54px;object-fit:cover;border-radius:6px;border:1px solid var(--color-divider)" />
+          <button class="btn btn-secondary btn-icon" title="Remove" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;min-height:20px" onClick=${() => setRefs(r => r.filter((_, j) => j !== i))}><i class="ph ph-x" style="font-size:10px"></i></button></span>`)}</div>`}
+        ${refs.length < 4 && html`<input class="input" type="file" accept="image/*" multiple onChange=${addRefs} />`}
+      </div>
+      <label class="check" style="font-size:12px"><input type="checkbox" checked=${useAssets} onChange=${e => setUseAssets(e.target.checked)} />Let it use my 3D models (${models.length}${people.length ? ', ' + people.length + ' people' : ''})</label>
+      ${useAssets && html`<div class="stack" style="gap:4px;padding-left:24px">
+        ${models.length > 0 && html`<span class="muted" style="font-size:11px">${models.map(a => a.name).join(', ')}</span>`}
+        <button class="btn btn-ghost" style="align-self:flex-start;font-size:12px" onClick=${() => setDialog({ create: 'Human', fromImage: true, only: 'body' })}><i class="ph ph-person-arms-spread"></i>Add a person from an image (SAM 3D Body)</button>
+      </div>`}
+      <label class="check" style="font-size:12px"><input type="checkbox" checked=${useStory} onChange=${e => setUseStory(e.target.checked)} />Share my 2D novel as inspiration (“${game.title}”, ${game.scenes.length} scenes)</label>
+      <div class="field"><label>Model</label><input class="input mono" list="codemodels" style="font-size:12px" placeholder=${(prov && prov.codeModel) || settings.model} value=${settings.codeModel || ''} onInput=${e => setSettings({ ...settings, codeModel: e.target.value.trim() })} />
         <datalist id="codemodels">${[...new Set([...((prov && prov.models) || []), ...(settings.knownModels || [])])].map(m => html`<option value=${m}></option>`)}</datalist></div>
-      <button class="btn btn-primary" disabled=${!!coding || !brief.trim()} onClick=${() => codeGame({ brief: brief.trim(), genre, view, useAssets })}><i class=${'ph ' + (coding ? 'ph-spinner spin' : 'ph-game-controller')}></i>${coding ? 'Meta AI is working…' : has ? 'Build a new game' : 'Build the game with Meta AI'}</button>
-      ${has && html`<span class="muted" style="font-size:11px">This replaces the current game. Undo brings it back.</span>`}
+      <button class="btn btn-primary" disabled=${!!coding || (promptMode === 'own' && !customPrompt.trim())} onClick=${() => codeGame({ idea: idea.trim(), useAssets, useStory, refs, promptMode, customPrompt })}><i class=${'ph ' + (coding ? 'ph-spinner spin' : 'ph-cube-focus')}></i>${coding ? 'Meta AI is working…' : has ? 'Build a new 3D novel' : 'Build with Meta AI'}</button>
+      ${has && html`<span class="muted" style="font-size:11px">This replaces the current one. Undo brings it back.</span>`}
     </div>`}
-    <div class="note"><i class="ph ph-info" style="color:var(--color-meta)"></i><span style="flex:1;font-size:12px">Building takes a few minutes. ${/wonder/i.test(model) ? 'Muse Wonder writes the best code but costs more per token than Muse Spark.' : 'For the best results set the game-code model to muse-wonder-1.0.'} Want the assets in Blender, Unity, Godot or Unreal instead? Use <b>Save → Export asset pack (.zip)</b>.</span></div>`;
+    <div class="note"><i class="ph ph-info" style="color:var(--color-meta)"></i><span style="flex:1;font-size:12px">Building takes a few minutes. Want the assets in Blender, Unity, Godot or Unreal instead? Use <b>Save → Export asset pack (.zip)</b>.</span></div>`;
 }
 
 // ======================================================================
@@ -1032,7 +1082,7 @@ function Settings({ settings, setSettings, server, aiReady, prov, notify }) {
       <div class="field"><label>Provider</label><select class="input" value=${settings.provider} onChange=${e => choose(e.target.value)}>${AI.PROVIDERS.map(x => html`<option value=${x.id} selected=${x.id === settings.provider}>${x.label}</option>`)}</select></div>
       <div class="field"><label>Model · story, art, music, 3D and the assistant</label><input class="input mono" list="models" style="font-size:12px" value=${settings.model} onInput=${e => setSettings({ ...settings, model: e.target.value })} />
         <datalist id="models">${known.map(m => html`<option value=${m}></option>`)}</datalist></div>
-      <div class="field"><label>Model · Full Game code${prov.codeModel ? ' (Muse Wonder writes the best game code)' : ''}</label><input class="input mono" list="models" style="font-size:12px" placeholder=${prov.codeModel || settings.model} value=${settings.codeModel || ''} onInput=${e => setSettings({ ...settings, codeModel: e.target.value.trim() })} /></div>
+      <div class="field"><label>Model · 3D Novel code${prov.codeModel ? ' (Muse Wonder writes the best code)' : ''}</label><input class="input mono" list="models" style="font-size:12px" placeholder=${prov.codeModel || settings.model} value=${settings.codeModel || ''} onInput=${e => setSettings({ ...settings, codeModel: e.target.value.trim() })} /></div>
       <button class="btn btn-secondary" disabled=${listing && listing.busy} onClick=${listAll}><i class=${'ph ' + (listing && listing.busy ? 'ph-spinner spin' : 'ph-list-magnifying-glass')}></i>List the models my key can use</button>
       ${listing && !listing.busy && html`<div class=${'msg ' + (listing.ok ? 'ai' : 'err')} style="max-width:100%;font-size:12px">${listing.text}</div>`}
       <div class="field"><label>Endpoint (OpenAI-compatible)</label><input class="input mono" style="font-size:12px" value=${settings.baseUrl} onInput=${e => setSettings({ ...settings, baseUrl: e.target.value })} /></div>
@@ -1048,7 +1098,7 @@ function Settings({ settings, setSettings, server, aiReady, prov, notify }) {
       <span class="label">Getting a Muse Spark key</span>
       <span>1. Sign in at <a href="https://dev.meta.ai/api-keys/" target="_blank" rel="noopener" style="color:var(--color-accent-300)">dev.meta.ai/api-keys</a> and create an API key.</span>
       <span>2. Paste it above, or put <span class="mono">MODEL_API_KEY=…</span> in <span class="mono">game-forge/.env</span> and restart the server.</span>
-      <span>One key works for every Muse model on Meta Model API: <span class="mono">muse-spark-1.1</span> and <span class="mono">muse-spark-1.3</span> for everyday writing, and <span class="mono">muse-wonder-1.0</span>, Meta's strongest coding model, for Full Game. Muse Wonder Full is not on the API yet. They are reasoning models, so replies can take a little longer.</span>
+      <span>One key works for every Muse model on Meta Model API: <span class="mono">muse-spark-1.1</span> and <span class="mono">muse-spark-1.3</span> for everyday writing, and <span class="mono">muse-wonder-1.0</span>, Meta's strongest coding model, for 3D Novel. Muse Wonder Full is not on the API yet. They are reasoning models, so replies can take a little longer.</span>
       <span>The other presets run Meta Llama instead (Meta Llama API, Groq, Together, or Ollama on your own machine).</span>
       ${server && server.offline && html`<span style="color:var(--color-danger)">The local server is not responding — start it with <span class="mono">node server.js</span>.</span>`}
     </div>

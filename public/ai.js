@@ -111,7 +111,7 @@ export function normalizeGame(g) {
     characters: [], backgrounds: [], music: [], scenes: [], assets3d: g.assets3d || [],
   };
   const uniq = (list, key) => { const seen = new Set(); return list.filter(x => x && x[key] && !seen.has(x[key]) && seen.add(x[key])); };
-  game.characters = uniq((g.characters || []).map(c => ({ name: String(c.name || '').trim(), role: c.role || 'Minor', desc: c.desc || '', color: /^#[0-9a-f]{6}$/i.test(c.color) ? c.color : undefined, svg: c.svg, img: c.img })), 'name');
+  game.characters = uniq((g.characters || []).map(c => ({ name: String(c.name || '').trim(), role: c.role || 'Minor', desc: c.desc || '', color: /^#[0-9a-f]{6}$/i.test(c.color) ? c.color : undefined, svg: c.svg, img: c.img, model3d: typeof c.model3d === 'string' ? c.model3d : undefined })), 'name');
   game.backgrounds = uniq((g.backgrounds || []).map(b => ({ name: String(b.name || '').trim(), desc: b.desc || '', svg: b.svg, img: b.img })), 'name');
   game.music = uniq((g.music || []).map(m => ({ ...m, name: String(m.name || '').trim(), mood: m.mood || '' })), 'name');
 

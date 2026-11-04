@@ -1,14 +1,17 @@
 # Game Forge — AI game assistant & game builder, powered by Meta AI
 
-Game Forge turns a one-line idea into a playable branching game, then lets you
-edit everything with an AI copilot, or has Meta AI code a complete playable
-game. **Every AI feature runs on Meta AI models**: **Muse Spark** (Meta Model
-API) for writing, art, music and 3D design, **Muse Wonder** for full game code,
-and Meta's **SAM 3D Body** to turn a picture of a person into a 3D model.
+Game Forge is a visual novel maker with two modes. **2D Novel** turns a
+one-line idea into a branching story with 2D art, and lets you edit everything
+with an AI copilot. **3D Novel** is an interactive 3D story game: you explore a
+3D world and click on people, buildings and objects to talk, choose and move
+the story on. **Every AI feature runs on Meta AI models**: **Muse Spark** (Meta
+Model API) for writing, art, music and 3D design, **Muse Wonder** to build the
+3D novel, and Meta's **SAM 3D Body** to turn a picture of a person into a 3D
+body.
 
 | Feature | What Meta AI does |
 |---|---|
-| **Full Game** | **Muse Wonder** writes a complete playable game (2D or 3D: gameplay, controls, score, levels, sound) that uses your 3D models, art and music. Play it in the app, change it by asking, save it as one `.html` |
+| **3D Novel** | **Muse Wonder** makes an interactive 3D story game: a world to explore where clicking on people, buildings and objects moves the story on. It decides the story, world and design itself, and can use your 3D models (SAM 3D Body people as the starting point for its characters). Play it in the app, change it by asking, save it as one `.html` |
 | **New game with Meta AI** | Writes the title, characters, locations, soundtrack and every branching scene (dialogue + choices) |
 | **Forge Assistant** | Chat copilot that reviews your story, brainstorms, and *edits the project directly*. Every change can be undone |
 | **Write this scene** | Rewrites one scene's dialogue, cast and choices from your direction |
@@ -18,8 +21,8 @@ and Meta's **SAM 3D Body** to turn a picture of a person into a 3D model.
 | **3D from an image** | **SAM 3D Body** rebuilds a person from a photo or drawing as a posed 3D body mesh, on your own GPU. Optional **SAM 3D Objects** does any object on a cloud GPU |
 
 Also: drag-to-arrange scene chart, live preview, full-screen playtest, upload
-your own images and audio, autosave, undo, **Save → Save as playable game
-(.html)**, a single file anyone can open in a browser, and **Save → Export
+your own images and audio, autosave, undo, **Save → Save 2D novel (.html)**
+and **Save 3D novel (.html)**, single files anyone can open in a browser, and **Save → Export
 asset pack (.zip)** with every asset ready for Blender, Unity, Godot or Unreal.
 
 ---
@@ -104,8 +107,8 @@ Model API. Game Forge uses two of them:
 
 | Setting | Default | Used for |
 |---|---|---|
-| **Model · story, art, music, 3D and the assistant** | `muse-spark-1.1` (or `muse-spark-1.3`) | everything except Full Game |
-| **Model · Full Game code** | `muse-wonder-1.0` | writing full games (Meta's strongest coding model) |
+| **Model · story, art, music, 3D and the assistant** | `muse-spark-1.1` (or `muse-spark-1.3`) | everything except the 3D Novel code |
+| **Model · 3D Novel code** | `muse-wonder-1.0` | building the 3D novel (Meta's strongest coding model) |
 
 Click **List the models my key can use** to see every model your account has
 and pick any of them. Muse Wonder Full is not on the API yet. Muse Wonder costs
@@ -163,16 +166,27 @@ the project folder.
 - **Assets:** the left panel lists characters, backgrounds and music. Click one
   to use it in the current scene. Hover for **Draw/Paint/Compose with Meta AI**,
   **Make 3D**, and delete. **Upload** adds your own images or audio.
-- **Full Game (a complete playable game):** click **Full Game** on the left.
-  Describe the game, pick a genre and **3D** or **2D**, leave **Use this
-  project's assets** ticked, and click **Build the game with Meta AI**. Muse
-  Wonder writes the whole game in a few minutes and it starts in the panel:
-  click it to give it the keyboard. To change it, type what you want under
-  **Change the game** (or pick an idea) and click **Apply with Meta AI**. If the
-  game shows an error, **Fix with Meta AI** sends the error back to be fixed.
-  **Undo** goes back a version. **Save game (.html)** saves one file that runs
-  in any browser, with your models, art and music inside. The game runs
-  sandboxed: it cannot see Game Forge, your key or your files.
+- **2D Novel:** where you write a branching story: scenes, dialogue, choices,
+  characters, backgrounds and music, with 2D art.
+- **3D Novel (an interactive 3D story):** click **3D Novel** on the left.
+  Choose the **Prompt**: **Game Forge's + my idea** (Game Forge's short prompt
+  tells Muse Wonder what it can use and how the file runs; **See Game Forge's
+  prompt** shows it), or **My own prompt** to edit that prompt or write your
+  own from scratch. Type an idea, or leave it empty and Muse Wonder decides.
+  **Optional starting points** (Isometric room diorama, Cozy café or shop,
+  Investigation room, Rooms to explore) add an editable description to your
+  idea, for novels set in isometric cut-away rooms. **Reference images** (up
+  to 4) show Muse Wonder the look you have in mind. Tick **Let it use my
+  3D models** to hand it your models: SAM 3D Body people are its starting point
+  for characters (**Add a person from an image** makes one). Tick **Share my 2D
+  novel as inspiration** if you like; the 3D story does not have to follow it.
+  Click **Build with Meta AI**: in a few minutes Muse Wonder builds a 3D world
+  where you click on people, buildings and objects to talk, choose and move the
+  story on. Click inside to play. To change it, type what you want under
+  **Change it** and click **Apply with Meta AI**. If it shows an error, **Fix
+  with Meta AI** sends the error back. **Undo** goes back a version. **Save 3D
+  novel (.html)** saves one file that runs in any browser, with your models
+  inside. It runs sandboxed: it cannot see Game Forge, your key or your files.
 - **Assets for your own 3D software:** **Save → Export asset pack (.zip)**
   saves every asset: 3D models as `.glb` (metres, Y up, standing on the ground),
   characters and backgrounds as `.svg` and `.png`, music as `.wav`, the project
@@ -198,7 +212,8 @@ the project folder.
   the first save asks where to put the `.gameforge.json` file, and every save
   after that updates the same file; other browsers save a copy to Downloads.
   The arrow next to **Save** has **Save project as…** (Ctrl+Shift+S),
-  **Save as playable game (.html)** and **Reset to sample game**. The top bar
+  **Save 2D novel (.html)**, **Save 3D novel (.html)**, **Export asset pack
+  (.zip)** and **Reset to sample game**. The top bar
   shows "Saved" or "Unsaved changes".
 - **Open a saved project:** click **Open** (or press **Ctrl+O**) and pick a
   `.gameforge.json` file.
@@ -206,8 +221,8 @@ the project folder.
   else) to build by hand or with Forge Assistant. If the current project has
   unsaved changes it offers to save first, and **Undo** brings the previous
   project back.
-- **Share:** **Save → Save as playable game (.html)** saves one file that runs
-  in any browser.
+- **Share:** **Save → Save 2D novel (.html)** or **Save 3D novel (.html)** saves
+  one file that runs in any browser.
 - **Saving in the game:** players can open **☰ Menu** while playing to
   **Save game** or **Load game** in three slots. The game also autosaves, so the
   title screen offers **Continue**. This works in **Play build** and in exported
@@ -238,7 +253,7 @@ panel instead: put `SAM3D_OBJECTS_REPO` (the sam-3d-objects folder) and
 |---|---|
 | `start-game-forge.bat` | Windows launcher for Game Forge |
 | `server.js` | Local web server; forwards AI calls to Meta (keeps keys server-side) |
-| `public/` | The editor: `app.js` (UI), `ai.js` (every Meta AI prompt), `coder.js` (Full Game: Muse Wonder prompt and the `FORGE` asset runtime games use), `pack.js` (asset pack .zip), `player.js` (story game runtime, also used by exported games), `viewer3d.js` (3D viewer + GLB export), `sample.js` (starter game) |
+| `public/` | The editor: `app.js` (UI), `ai.js` (every Meta AI prompt), `coder.js` (3D Novel: what Muse Wonder is told, and the `FORGE` runtime with your models, `dressBody`, the optional 2D story and music), `pack.js` (asset pack .zip), `player.js` (2D novel player, also used by exported 2D novels), `viewer3d.js` (3D viewer + GLB export), `sample.js` (starter game) |
 | `.env.example` | Optional server settings (API key, model, SAM 3D service URL) |
 | `sam3d-service/server.py` | SAM 3D service (Body and Objects) that returns `.glb` meshes |
 | `sam3d-service/install-body.bat`, `start-body.bat` | One-click SAM 3D Body install and start |
