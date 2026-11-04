@@ -82,7 +82,8 @@ async function handleChat(req, res) {
   // Reasoning models (Muse Spark) count thinking toward the output budget and
   // take max_completion_tokens + reasoning_effort; Llama hosts take max_tokens.
   const reasoning = !!body.reasoning;
-  const maxTokens = Math.min(Number(body.maxTokens) || 2048, 8192);
+  // Full game code (Muse Wonder) asks for up to 26k tokens; everything else stays small.
+  const maxTokens = Math.min(Number(body.maxTokens) || 2048, 26000);
   const payload = {
     model: body.model || ENV_MODEL,
     messages: Array.isArray(body.messages) ? body.messages : [],
@@ -97,7 +98,7 @@ async function handleChat(req, res) {
 
   const started = Date.now();
   const call = p => fetch(base + '/chat/completions', {
-    method: 'POST', headers, body: JSON.stringify(p), signal: AbortSignal.timeout(240000),
+    method: 'POST', headers, body: JSON.stringify(p), signal: AbortSignal.timeout(maxTokens > 8192 ? 900000 : 240000),
   });
   try {
     let r = await call(payload);
@@ -114,10 +115,28 @@ async function handleChat(req, res) {
     }
     const text = extractText(data);
     if (!text) return send(res, 502, { error: 'Meta AI provider returned no text (the reply may have run out of tokens while reasoning).' });
-    send(res, 200, { text, model: (data && data.model) || payload.model, ms: Date.now() - started, usage: data && data.usage });
+    const finish = data && data.choices && data.choices[0] && data.choices[0].finish_reason;
+    send(res, 200, { text, finish, model: (data && data.model) || payload.model, ms: Date.now() - started, usage: data && data.usage });
   } catch (e) {
     send(res, 502, { error: 'Could not reach ' + base + ' — ' + (e.name === 'TimeoutError' ? 'request timed out' : e.message) });
   }
+}
+
+// Lists the models this key can use (GET {base}/models), e.g. every Muse model
+// on Meta Model API. Body: { baseUrl?, apiKey? }
+async function handleModels(req, res) {
+  let body;
+  try { body = JSON.parse(await readBody(req) || '{}'); } catch (e) { return send(res, 400, { error: 'Invalid JSON body' }); }
+  const base = String(body.baseUrl || ENV_BASE).replace(/\/+$/, '');
+  if (!/^https?:\/\//.test(base)) return send(res, 400, { error: 'Base URL must start with http(s)://' });
+  const key = body.apiKey || (base === ENV_BASE ? ENV_KEY : '');
+  try {
+    const r = await fetch(base + '/models', { headers: key ? { Authorization: 'Bearer ' + key } : {}, signal: AbortSignal.timeout(20000) });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) return send(res, r.status, { error: `Model list returned ${r.status}: ${(data.error && (data.error.message || data.error)) || data.detail || ''}` });
+    const list = Array.isArray(data.data) ? data.data : Array.isArray(data.models) ? data.models : [];
+    send(res, 200, { models: list.map(m => (typeof m === 'string' ? m : m.id || m.name)).filter(Boolean).sort() });
+  } catch (e) { send(res, 502, { error: 'Could not reach ' + base + ' — ' + e.message }); }
 }
 
 // SAM 3D Body / SAM 3D Objects (Meta) — forwards an image to the GPU service
@@ -288,6 +307,7 @@ http.createServer(async (req, res) => {
     return send(res, 200, { hasServerKey: !!ENV_KEY, baseUrl: ENV_BASE, model: ENV_MODEL, sam3dUrl: ENV_SAM3D_URL });
   }
   if (req.method === 'POST' && req.url.startsWith('/api/chat')) return handleChat(req, res);
+  if (req.method === 'POST' && req.url.startsWith('/api/models')) return handleModels(req, res);
   if (req.url.startsWith('/api/sam3d/engines')) return handleEngines(req, res);
   if (req.method === 'POST' && req.url.startsWith('/api/sam3d')) return handleSam3d(req, res);
   if (req.method === 'GET') return serveStatic(req, res);

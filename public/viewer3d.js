@@ -84,6 +84,13 @@ export async function buildObject(asset, style) {
   return asset.glb ? loadGlb(asset) : buildGroup(asset, style);
 }
 
+// .glb of any asset, without a viewer on screen (asset pack, Full Game).
+export async function exportGLB(asset, style) {
+  const { group } = await buildObject(asset, style || asset.style || 'Low-poly stylized');
+  const buf = await new GLTFExporter().parseAsync(group, { binary: true });
+  return new Blob([buf], { type: 'model/gltf-binary' });
+}
+
 export async function createViewer(canvas) {
   await load();
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });

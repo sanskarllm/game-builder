@@ -4,8 +4,8 @@
 // /api/chat proxy → Meta Model API (Muse Spark), or a host serving Meta Llama.
 
 export const PROVIDERS = [
-  { id: 'muse', label: 'Meta Model API · Muse Spark', baseUrl: 'https://api.meta.ai/v1', model: 'muse-spark-1.1', needsKey: true, reasoning: true,
-    keyHint: 'Key from dev.meta.ai/api-keys', models: ['muse-spark-1.1', 'muse-spark-1.3'] },
+  { id: 'muse', label: 'Meta Model API · Muse Spark / Muse Wonder', baseUrl: 'https://api.meta.ai/v1', model: 'muse-spark-1.1', needsKey: true, reasoning: true,
+    keyHint: 'Key from dev.meta.ai/api-keys', models: ['muse-spark-1.1', 'muse-spark-1.3', 'muse-wonder-1.0'], codeModel: 'muse-wonder-1.0' },
   { id: 'meta', label: 'Meta Llama API (llama.com)', keyHint: 'LLM|… from llama.developer.meta.com', baseUrl: 'https://api.llama.com/compat/v1', model: 'Llama-4-Maverick-17B-128E-Instruct-FP8', needsKey: true,
     models: ['Llama-4-Maverick-17B-128E-Instruct-FP8', 'Llama-4-Scout-17B-16E-Instruct-FP8', 'Llama-3.3-70B-Instruct', 'Llama-3.3-8B-Instruct'] },
   { id: 'groq', label: 'Groq · Meta Llama', baseUrl: 'https://api.groq.com/openai/v1', model: 'meta-llama/llama-4-maverick-17b-128e-instruct', needsKey: true,
@@ -19,16 +19,37 @@ export const PROVIDERS = [
 let settings = { provider: 'muse', baseUrl: PROVIDERS[0].baseUrl, model: PROVIDERS[0].model, apiKey: '' };
 export function setLlamaSettings(s) { settings = { ...settings, ...s }; }
 
-export async function llama(messages, { temperature = 0.7, maxTokens = 2048, signal, effort = 'low' } = {}) {
+// model: optional override (Full Game uses the "code" model, Muse Wonder by default).
+// full: return { text, finish } instead of just the text.
+export async function llama(messages, { temperature = 0.7, maxTokens = 2048, signal, effort = 'low', model, full } = {}) {
   const prov = PROVIDERS.find(p => p.id === settings.provider);
-  const reasoning = !!(prov && prov.reasoning) || /^muse/i.test(settings.model);
+  model = model || settings.model;
+  const reasoning = !!(prov && prov.reasoning) || /^muse/i.test(model);
   const r = await fetch('/api/chat', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, signal,
-    body: JSON.stringify({ messages, temperature, maxTokens, reasoning, reasoningEffort: reasoning ? effort : undefined, baseUrl: settings.baseUrl, model: settings.model, apiKey: settings.apiKey || undefined }),
+    body: JSON.stringify({ messages, temperature, maxTokens, reasoning, reasoningEffort: reasoning ? effort : undefined, baseUrl: settings.baseUrl, model, apiKey: settings.apiKey || undefined }),
   });
   const data = await r.json().catch(() => ({ error: 'The local Game Forge server did not answer. Is `node server.js` running?' }));
   if (!r.ok || data.error) throw new Error(data.error || ('HTTP ' + r.status));
-  return data.text;
+  return full ? data : data.text;
+}
+
+// The model used to write full game code: settings.codeModel, else the
+// provider's default (Muse Wonder on Meta Model API), else the main model.
+export function codeModel() {
+  const prov = PROVIDERS.find(p => p.id === settings.provider);
+  return settings.codeModel || (prov && prov.codeModel) || settings.model;
+}
+
+// Every model this key can use, straight from the provider (GET /models).
+export async function listModels() {
+  const r = await fetch('/api/models', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ baseUrl: settings.baseUrl, apiKey: settings.apiKey || undefined }),
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || d.error) throw new Error(d.error || 'HTTP ' + r.status);
+  return d.models || [];
 }
 
 // Pull a JSON object out of model output (handles ```json fences, chatter
