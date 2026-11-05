@@ -2,7 +2,7 @@
 import { html, render, useState, useEffect, useRef, useMemo } from 'htm/preact';
 import * as AI from './ai.js';
 import * as Coder from './coder.js';
-import { storyPage, publishNovel, makeCover, authorName } from './community-api.js';
+import { storyPage, publishNovel, makeCover, listNovels } from './community-api.js';
 import { SAMPLE_GAME, SAMPLE_3D } from './sample.js';
 
 const FP = window.ForgePlayer;
@@ -1246,10 +1246,11 @@ function PublishDialog({ game, fullGamePage, aiReady, notify, onClose }) {
   const has3d = !!(game.code && game.code.html);
   const [mode, setMode] = useState('2D');
   const [title, setTitle] = useState(game.title);
-  const [author, setAuthor] = useState(authorName());
+  const [who, setWho] = useState(undefined); // the signed-in Community account
   const [description, setDescription] = useState(game.logline || '');
   const [tags, setTags] = useState('');
   const [busy, setBusy] = useState('');
+  useEffect(() => { listNovels().then(d => setWho(d.user)).catch(() => setWho(null)); }, []);
   async function suggest() {
     setBusy('tags');
     try { setTags((await AI.suggestTags(title, description + ' ' + game.characters.map(c => c.desc).join(' ').slice(0, 400))).join(', ')); }
@@ -1262,24 +1263,23 @@ function PublishDialog({ game, fullGamePage, aiReady, notify, onClose }) {
       const page = mode === '3D' ? await fullGamePage(game) : await storyPage(game);
       const first = game.scenes[0] && game.scenes[0].bg;
       const cover = await makeCover(FP.bgUrl(game, first));
-      authorName(author);
-      await publishNovel({ title, author, description, tags: tags.split(','), mode, cover, html: page });
+      await publishNovel({ title, description, tags: tags.split(','), mode, cover, html: page });
       notify('Posted “' + title + '” to the Community');
       onClose();
     } catch (e) { notify('Could not post: ' + e.message, true); setBusy(''); }
   }
   return html`<div class="backdrop" onClick=${onClose}><div class="dialog" style="width:440px" onClick=${e => e.stopPropagation()}>
     <div class="row"><i class="ph ph-upload-simple" style="color:var(--color-accent);font-size:18px"></i><span class="dialog-title">Post to Community</span><div style="flex:1"></div><button class="btn btn-ghost btn-icon" onClick=${onClose}><i class="ph ph-x"></i></button></div>
-    <span style="font-size:13px;color:var(--color-neutral-300)">Anyone using the Community page can see and play what you post. Your API key is never included.</span>
+    <span style="font-size:13px;color:var(--color-neutral-300)">Anyone using the Community page can see and play what you post${who ? ', under your username ' + who.name : ''}. Your API key is never included.</span>
+    ${who === null && html`<div class="note"><i class="ph ph-user-circle" style="color:var(--color-accent)"></i><span style="flex:1;font-size:12px">Posting needs a Community account.</span><a class="btn btn-secondary" href="community.html" target="_blank" rel="noopener">Sign in</a></div>`}
     <div class="row"><span class="label" style="flex:1">Post</span><div class="seg">
       <button class=${'seg-opt' + (mode === '2D' ? ' on' : '')} onClick=${() => setMode('2D')}>2D novel</button>
       <button class=${'seg-opt' + (mode === '3D' ? ' on' : '')} disabled=${!has3d} title=${has3d ? '' : 'Build one in 3D Novel first'} onClick=${() => setMode('3D')}>3D novel</button></div></div>
     <div class="field"><label>Title</label><input class="input" maxlength="80" value=${title} onInput=${e => setTitle(e.target.value)} /></div>
-    <div class="field"><label>Your name</label><input class="input" maxlength="40" placeholder="Anonymous" value=${author} onInput=${e => setAuthor(e.target.value)} /></div>
     <div class="field"><label>Description</label><textarea class="input" maxlength="500" value=${description} onInput=${e => setDescription(e.target.value)}></textarea></div>
     <div class="field"><div class="row"><label style="flex:1">Tags, separated by commas</label>${aiReady && html`<button class="btn btn-ghost" style="font-size:12px" disabled=${!!busy} onClick=${suggest}><i class=${'ph ' + (busy === 'tags' ? 'ph-spinner spin' : 'ph-sparkle')}></i>Suggest with Meta AI</button>`}</div>
       <input class="input" placeholder="mystery, romance, cozy" value=${tags} onInput=${e => setTags(e.target.value)} /></div>
-    <div class="dialog-actions"><button class="btn btn-secondary" onClick=${onClose}>Cancel</button><button class="btn btn-solid" disabled=${!!busy || !title.trim()} onClick=${post}><i class=${'ph ' + (busy === 'post' ? 'ph-spinner spin' : 'ph-upload-simple')}></i>${busy === 'post' ? 'Posting…' : 'Post'}</button></div>
+    <div class="dialog-actions"><button class="btn btn-secondary" onClick=${onClose}>Cancel</button><button class="btn btn-solid" disabled=${!!busy || !title.trim() || !who} onClick=${post}><i class=${'ph ' + (busy === 'post' ? 'ph-spinner spin' : 'ph-upload-simple')}></i>${busy === 'post' ? 'Posting…' : 'Post'}</button></div>
   </div></div>`;
 }
 

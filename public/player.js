@@ -273,18 +273,23 @@
   }
 
   // ---------- save slots (player progress) ----------
-  // Saved in the browser's localStorage, one set of slots per game.
+  // Saved through kv: this browser's localStorage, or in the Community the page
+  // around the novel, because the sandbox has no storage. One set per game.
   const SLOTS = ['1', '2', '3'];
-  function saves(game) {
+  const browserStore = {
+    get(key) { try { return JSON.parse(localStorage.getItem(key)); } catch (e) { return null; } },
+    set(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch (e) { return false; } },
+  };
+  function saves(game, kv) {
     const key = 'forge-save:' + hash((game.title || '') + '|' + (game.scenes || []).map(s => s.id).join(','));
-    const read = () => { try { return JSON.parse(localStorage.getItem(key)) || {}; } catch (e) { return {}; } };
+    const read = () => kv.get(key) || {};
     return {
       all: read,
       get: slot => read()[slot] || null,
       put(slot, st) {
         const all = read(); const sc = (game.scenes || []).find(s => s.id === st.scene) || {};
         all[slot] = { scene: st.scene, line: st.line, title: sc.title || '', at: Date.now() };
-        try { localStorage.setItem(key, JSON.stringify(all)); return true; } catch (e) { return false; }
+        return kv.set(key, all);
       },
     };
   }
@@ -297,20 +302,24 @@
   // has no network, so it asks the page around it (see frameBridge).
   function boot(el, source, options) {
     injectCss();
+    const ai = (options && options.ai) || frameBridge();
+    if (ai && ai.store) { el.innerHTML = '<div class="fp-stage"></div>'; ai.ready.then(() => start(el, source, ai, ai.store)); }
+    else start(el, source, ai, browserStore);
+  }
+  function start(el, source, ai, kv) {
     let ctl = null;
     const game = JSON.parse(JSON.stringify(source)); // the story grows, the project must not
-    const store = saves(game);
+    const store = saves(game, kv);
     const resumable = s => s && (game.scenes || []).some(x => x.id === s.scene);
-    const ai = (options && options.ai) || frameBridge();
     const baseCount = (game.scenes || []).length;
     const infKey = 'forge-infinity:' + hash((game.title || '') + '|' + (game.scenes || []).map(s => s.id).join(','));
     let inf = { path: [], memory: { likes: [], dislikes: [], summary: '' }, part: 1, count: 0, ended: 'The End' };
     let endedAt = null; // the ending the player actually reached
     function saveInf() {
-      try { localStorage.setItem(infKey, JSON.stringify({ inf, scenes: game.scenes.slice(baseCount), characters: game.characters, backgrounds: game.backgrounds.map(b => ({ name: b.name, desc: b.desc })) })); } catch (e) { /* storage blocked: it just will not resume */ }
+      kv.set(infKey, { inf, scenes: game.scenes.slice(baseCount), characters: game.characters.map(c => ({ name: c.name, desc: c.desc, role: c.role })), backgrounds: game.backgrounds.map(b => ({ name: b.name, desc: b.desc })) });
     }
     try {
-      const was = JSON.parse(localStorage.getItem(infKey));
+      const was = kv.get(infKey);
       if (was && was.inf) {
         inf = was.inf; game.scenes.push(...(was.scenes || []));
         (was.characters || []).forEach(c => { if (!game.characters.some(x => x.name === c.name)) game.characters.push({ name: c.name, desc: c.desc, role: c.role || 'Minor' }); });
@@ -448,16 +457,20 @@
   // reach Meta AI. If nobody answers, it is a saved file and simply ends.
   function frameBridge() {
     if (window.parent === window) return null;
-    const waiting = {}; let n = 0, yes;
-    const ready = new Promise(res => { yes = res; setTimeout(() => res(false), 1500); });
+    const waiting = {}; let n = 0, yes, data = {};
+    const ready = new Promise(res => { yes = res; setTimeout(() => res(false), 3000); });
     window.addEventListener('message', e => {
       if (e.source !== window.parent || !e.data || !e.data.forgeInfinity) return;
       const d = e.data.forgeInfinity;
-      if (d.type === 'ready') yes(true);
+      if (d.type === 'ready') { data = d.saves || {}; yes(true); }
       if (d.type === 'reply' && waiting[d.id]) { const w = waiting[d.id]; delete waiting[d.id]; d.error ? w.rej(new Error(d.error)) : w.res(d.result); }
     });
     window.parent.postMessage({ forgeInfinity: { type: 'hello' } }, '*');
-    return { ready, ask: request => new Promise((res, rej) => { const id = ++n; waiting[id] = { res, rej }; window.parent.postMessage({ forgeInfinity: { type: 'ask', id, request } }, '*'); }) };
+    const store = {
+      get: key => (key in data ? data[key] : null),
+      set(key, value) { data[key] = value; window.parent.postMessage({ forgeInfinity: { type: 'save', key, value } }, '*'); return true; },
+    };
+    return { ready, store, ask: request => new Promise((res, rej) => { const id = ++n; waiting[id] = { res, rej }; window.parent.postMessage({ forgeInfinity: { type: 'ask', id, request } }, '*'); }) };
   }
 
   window.ForgePlayer = { mount, boot, music, sanitizeSvg, fallbackBg, fallbackChar, bgUrl, charUrl, svgUrl, proceduralTrack, CSS };

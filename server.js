@@ -50,7 +50,15 @@ function send(res, status, body, type = 'application/json; charset=utf-8') {
 function readBody(req, limit = 8 * 1024 * 1024) {
   return new Promise((resolve, reject) => {
     let size = 0; const chunks = [];
-    req.on('data', c => { size += c.length; if (size > limit) { reject(new Error('Request too large')); req.destroy(); } else chunks.push(c); });
+    // Over the limit: stop keeping it and answer "too large". The connection only
+    // closes after a moment, so the sender gets that answer, not a network error.
+    let over = false;
+    req.on('data', c => {
+      if (over) return;
+      size += c.length;
+      if (size > limit) { over = true; chunks.length = 0; reject(new Error('Request too large')); setTimeout(() => req.destroy(), 3000).unref(); }
+      else chunks.push(c);
+    });
     req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
     req.on('error', reject);
   });
@@ -350,7 +358,7 @@ const onThisPC = req => /^(127\.0\.0\.1|::1|::ffff:127\.0\.0\.1)$/.test(req.sock
 
 http.createServer(async (req, res) => {
   if (req.method !== 'GET' && !sameSite(req)) return send(res, 403, { error: 'Forbidden' });
-  try { if (await community.handle(req, res, send, readBody)) return; }
+  try { if (await community.handle(req, res, send, readBody, { local: onThisPC(req) })) return; }
   catch (e) { console.error('Community error:', e); return send(res, 500, { error: 'The community server hit an error.' }); }
   if (req.method === 'POST' && req.url === '/api/infinity') return infinity.handle(req, res, send, readBody, { baseUrl: ENV_BASE, key: ENV_KEY, model: ENV_MODEL, extractText, local: onThisPC(req) });
   // If this server is opened up to other people (HOST=0.0.0.0) they only get

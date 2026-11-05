@@ -252,16 +252,30 @@ the project folder.
   novels posted by others, and like or dislike them. To post, use **Save → Post
   to Community…** in the editor (**Suggest with Meta AI** writes the tags), or
   **Post a novel** on the Community page with a saved `.html` novel or a
-  `.gameforge.json` project. **For you** learns from each viewer's likes and
+  `.gameforge.json` project. **For you** learns from each person's likes and
   dislikes (tags, 2D or 3D, authors), says why it picked a novel, and **Your
-  taste** shows what it has learned. Viewers need no account: their profile is
-  tied to a random id in their browser, so it does not follow them to another
-  browser. Every novel runs sandboxed, so it cannot see your key or projects or
-  send data out.
+  taste** shows what it has learned. Every novel runs sandboxed, so it cannot
+  see your account, key or projects or send data out.
+  - **Accounts:** anyone can browse and play. Liking, posting and reporting need
+    a free account (username and password), one vote per account, and your taste
+    profile and novels follow you to any device. There is no email, so a
+    forgotten password cannot be reset.
+  - **Saving in a novel:** Save, Load and Continue work in the Community. Signed
+    in, saves stay with your account and follow you to any device. As a guest
+    they stay in that browser. This applies to 2D novels saved or posted with
+    this version of Game Forge.
+  - **Reporting:** the flag on a card reports a novel, with a reason. Three
+    reports from different accounts hide it until an admin looks at it
+    (`COMMUNITY_HIDE_AT` changes the number).
+  - **Admins:** add your username to `COMMUNITY_ADMINS` in `.env`, restart, and
+    create that account on the machine running Game Forge. Admins get a
+    **Moderation** tab to open a reported novel, **Keep** it, **Remove** it or
+    **Ban author**, which also removes all their novels, and they can remove any
+    novel.
   Novels are stored in `data/community` on the server running Game Forge, so
   people see each other's novels only when they use the same server. To let
   others in, run it on a server they can reach with `HOST=0.0.0.0`, behind
-  HTTPS. Visitors from other machines get only the Community; the editor and
+  HTTPS, so passwords are encrypted on the way (set `COMMUNITY_HTTPS=1`). Visitors from other machines get only the Community; the editor and
   the AI, key and GPU routes stay on the machine running it.
 - **Saving in the game:** players can open **☰ Menu** while playing to
   **Save game** or **Load game** in three slots. The game also autosaves, so the
@@ -293,7 +307,7 @@ panel instead: put `SAM3D_OBJECTS_REPO` (the sam-3d-objects folder) and
 |---|---|
 | `start-game-forge.bat` | Windows launcher for Game Forge |
 | `server.js` | Local web server; forwards AI calls to Meta (keeps keys server-side) |
-| `community.js` | Community server: novels, likes and dislikes, taste profiles, sandboxed playback |
+| `community.js` | Community server: accounts, novels, likes and dislikes, taste profiles, reports and moderation, saves, sandboxed playback |
 | `infinity.js` | Infinity novels: prompts, checks on what Meta AI writes, and key handling for continuing a story |
 | `public/` | The editor: `app.js` (UI), `ai.js` (every Meta AI prompt), `coder.js` (3D Novel: what Muse Wonder is told, and the `FORGE` runtime with your models, `dressBody`, the optional 2D story and music), `pack.js` (asset pack .zip), `player.js` (2D novel player, also used by exported 2D novels), `viewer3d.js` (3D viewer + GLB export), `sample.js` (starter game) |
 | `.env.example` | Optional server settings (API key, model, SAM 3D service URL) |
