@@ -9,6 +9,7 @@ const fs = require('fs');
 const path = require('path');
 
 loadEnv(path.join(__dirname, '.env'));
+const community = require('./community');
 
 const PORT = Number(process.env.PORT) || 5173;
 const HOST = process.env.HOST || '127.0.0.1';
@@ -337,7 +338,25 @@ function serveStatic(req, res) {
   });
 }
 
+// Requests that change something must come from this site's own pages, so a
+// website you happen to visit (or a sandboxed novel) cannot use these routes.
+function sameSite(req) {
+  const origin = req.headers.origin;
+  if (!origin) return true;
+  try { return new URL(origin).host === req.headers.host; } catch (e) { return false; }
+}
+const onThisPC = req => /^(127\.0\.0\.1|::1|::ffff:127\.0\.0\.1)$/.test(req.socket.remoteAddress || '');
+
 http.createServer(async (req, res) => {
+  if (req.method !== 'GET' && !sameSite(req)) return send(res, 403, { error: 'Forbidden' });
+  try { if (await community.handle(req, res, send, readBody)) return; }
+  catch (e) { console.error('Community error:', e); return send(res, 500, { error: 'The community server hit an error.' }); }
+  // If this server is opened up to other people (HOST=0.0.0.0) they only get
+  // the Community: the AI, key and GPU routes stay on this PC.
+  if (!onThisPC(req)) {
+    if (req.url.startsWith('/api/')) return send(res, 403, { error: 'Only available on this computer.' });
+    if (req.url === '/' || req.url.startsWith('/index.html')) { res.writeHead(302, { Location: '/community.html' }); return res.end(); }
+  }
   if (req.method === 'GET' && req.url.startsWith('/api/status')) {
     return send(res, 200, { hasServerKey: !!ENV_KEY, baseUrl: ENV_BASE, model: ENV_MODEL, sam3dUrl: ENV_SAM3D_URL });
   }

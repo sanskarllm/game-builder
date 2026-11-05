@@ -233,6 +233,12 @@ Use only existing character names. 3-7 lines.`;
   return j;
 }
 
+// Short tags for posting a novel to the Community.
+export async function suggestTags(title, about) {
+  const j = await llamaJSON('You tag visual novels so readers can find ones they like. Return ONLY JSON: {"tags": ["..."]} with 3 to 6 short lowercase tags covering genre, mood and setting.', `Title: ${title}\n${about || ''}`, { temperature: 0.3, maxTokens: 300 });
+  return (Array.isArray(j.tags) ? j.tags : []).map(t => String(t).trim().toLowerCase()).filter(Boolean).slice(0, 6);
+}
+
 // ---------- 2D novel artwork ----------
 async function museImage(prompt, size) {
   const metaEndpoint = settings.baseUrl?.replace(/\/+$/, '') === PROVIDERS[0].baseUrl;

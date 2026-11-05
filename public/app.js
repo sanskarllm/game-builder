@@ -2,6 +2,7 @@
 import { html, render, useState, useEffect, useRef, useMemo } from 'htm/preact';
 import * as AI from './ai.js';
 import * as Coder from './coder.js';
+import { storyPage, publishNovel, makeCover, authorName } from './community-api.js';
 import { SAMPLE_GAME, SAMPLE_3D } from './sample.js';
 
 const FP = window.ForgePlayer;
@@ -223,11 +224,6 @@ function App() {
   }
 
   // ---- export ----
-  async function storyPage(g) {
-    const js = await (await fetch('player.js')).text();
-    const data = JSON.stringify({ ...g, assets3d: undefined, code: undefined }).replace(/</g, '\\u003c');
-    return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${g.title.replace(/</g, '')}</title><style>html,body{margin:0;height:100%;background:#05060c;display:grid;place-items:center}#game{width:min(100vw,177.78vh);aspect-ratio:16/9}</style></head><body><div id="game"></div><script>${js}<\/script><script>ForgePlayer.boot(document.getElementById('game'),${data});<\/script></body></html>`;
-  }
   async function exportGame() {
     setMenu(false);
     download(slug(game.title) + '.html', new Blob([await storyPage(game)], { type: 'text/html' }));
@@ -361,6 +357,7 @@ function App() {
       <button class="btn btn-secondary btn-icon" title="Undo" disabled=${!undoCount} onClick=${undo}><i class="ph ph-arrow-u-up-left"></i></button>
       <button class="btn btn-solid" onClick=${() => setDialog('new')}><i class="ph ph-magic-wand"></i>New game with Meta AI</button>
       <button class="btn btn-secondary" onClick=${() => setDialog('play')}><i class="ph ph-play"></i>Play build</button>
+      <a class="btn btn-secondary" href="community.html" target="_blank" rel="noopener" title="See and play novels posted by others"><i class="ph ph-users-three"></i>Community</a>
       <button class="btn btn-secondary" onClick=${newProject} title="Start a new, empty project"><i class="ph ph-file-plus"></i>New project</button>
       <div class="split" style="position:relative">
         <button class="btn btn-secondary" onClick=${() => saveProject(false)} title=${'Save project (Ctrl+S)' + (saveInfo ? ' · ' + saveInfo.name : '')}><i class="ph ph-floppy-disk"></i>Save</button>
@@ -371,6 +368,7 @@ function App() {
           <button onClick=${exportGame}><i class="ph ph-globe"></i>Save 2D novel (.html)</button>
           <button onClick=${exportFullGame} disabled=${!(game.code && game.code.html)} title=${game.code && game.code.html ? 'The 3D novel Meta AI built' : 'Build one in 3D Novel first'}><i class="ph ph-cube-focus"></i>Save 3D novel (.html)</button>
           <button onClick=${exportPack} title="Every asset as .glb, .svg/.png and .wav for Blender, Unity, Godot or Unreal"><i class="ph ph-package"></i>Export asset pack (.zip)</button>
+          <button onClick=${() => { setMenu(false); setDialog('publish'); }}><i class="ph ph-upload-simple"></i>Post to Community…</button>
           <button onClick=${() => { setMenu(false); if (confirm('Replace the current project with the sample game?')) { snapshot(); setGame({ ...clone(SAMPLE_GAME), assets3d: clone(SAMPLE_3D) }); setSel('s1'); } }}><i class="ph ph-arrow-counter-clockwise"></i>Reset to sample game</button>
         </div>`}
       </div>
@@ -393,6 +391,7 @@ function App() {
         <button class="btn btn-solid" onClick=${async () => { if (await saveProject(false)) startNewProject(); }}><i class="ph ph-floppy-disk"></i>Save and continue</button>
       </div>
     </div></div>`}
+    ${dialog === 'publish' && html`<${PublishDialog} game=${game} fullGamePage=${fullGamePage} aiReady=${aiReady} notify=${notify} onClose=${() => setDialog(null)} />`}
     ${dialog === 'play' && html`<${PlayerOverlay} game=${game} onClose=${() => { FP.music.stop(); setDialog(null); }} />`}
     ${toast && html`<div class=${'toast' + (toast.err ? ' err' : '')}>${toast.text}</div>`}
   </div>`;
@@ -1239,6 +1238,48 @@ function CreateDialog(p) {
       <div class="field"><label>${kind === 'music' ? 'Mood' : 'Prompt'}</label><textarea class="input" value=${desc} placeholder=${PH[1]} onInput=${e => setDesc(e.target.value)}></textarea></div>
       <div class="note"><i class="ph ph-sparkle" style="color:var(--color-meta)"></i><span style="flex:1">${kind === 'music' ? 'Meta AI composes a loopable melody that plays in-game.' : is3d ? 'Meta AI builds the model from 3D primitives; export as .glb.' : 'Muse Image illustrates this asset for your 2D novel.'}</span></div>`}
     <div class="dialog-actions"><button class="btn btn-secondary" onClick=${onClose}>Cancel</button><button class="btn btn-solid" onClick=${go}><i class="ph ph-sparkle"></i>Create</button></div>
+  </div></div>`;
+}
+
+// Post the current novel to the Community page.
+function PublishDialog({ game, fullGamePage, aiReady, notify, onClose }) {
+  const has3d = !!(game.code && game.code.html);
+  const [mode, setMode] = useState('2D');
+  const [title, setTitle] = useState(game.title);
+  const [author, setAuthor] = useState(authorName());
+  const [description, setDescription] = useState(game.logline || '');
+  const [tags, setTags] = useState('');
+  const [busy, setBusy] = useState('');
+  async function suggest() {
+    setBusy('tags');
+    try { setTags((await AI.suggestTags(title, description + ' ' + game.characters.map(c => c.desc).join(' ').slice(0, 400))).join(', ')); }
+    catch (e) { notify(e.message, true); }
+    setBusy('');
+  }
+  async function post() {
+    setBusy('post');
+    try {
+      const page = mode === '3D' ? await fullGamePage(game) : await storyPage(game);
+      const first = game.scenes[0] && game.scenes[0].bg;
+      const cover = await makeCover(FP.bgUrl(game, first));
+      authorName(author);
+      await publishNovel({ title, author, description, tags: tags.split(','), mode, cover, html: page });
+      notify('Posted “' + title + '” to the Community');
+      onClose();
+    } catch (e) { notify('Could not post: ' + e.message, true); setBusy(''); }
+  }
+  return html`<div class="backdrop" onClick=${onClose}><div class="dialog" style="width:440px" onClick=${e => e.stopPropagation()}>
+    <div class="row"><i class="ph ph-upload-simple" style="color:var(--color-accent);font-size:18px"></i><span class="dialog-title">Post to Community</span><div style="flex:1"></div><button class="btn btn-ghost btn-icon" onClick=${onClose}><i class="ph ph-x"></i></button></div>
+    <span style="font-size:13px;color:var(--color-neutral-300)">Anyone using the Community page can see and play what you post. Your API key is never included.</span>
+    <div class="row"><span class="label" style="flex:1">Post</span><div class="seg">
+      <button class=${'seg-opt' + (mode === '2D' ? ' on' : '')} onClick=${() => setMode('2D')}>2D novel</button>
+      <button class=${'seg-opt' + (mode === '3D' ? ' on' : '')} disabled=${!has3d} title=${has3d ? '' : 'Build one in 3D Novel first'} onClick=${() => setMode('3D')}>3D novel</button></div></div>
+    <div class="field"><label>Title</label><input class="input" maxlength="80" value=${title} onInput=${e => setTitle(e.target.value)} /></div>
+    <div class="field"><label>Your name</label><input class="input" maxlength="40" placeholder="Anonymous" value=${author} onInput=${e => setAuthor(e.target.value)} /></div>
+    <div class="field"><label>Description</label><textarea class="input" maxlength="500" value=${description} onInput=${e => setDescription(e.target.value)}></textarea></div>
+    <div class="field"><div class="row"><label style="flex:1">Tags, separated by commas</label>${aiReady && html`<button class="btn btn-ghost" style="font-size:12px" disabled=${!!busy} onClick=${suggest}><i class=${'ph ' + (busy === 'tags' ? 'ph-spinner spin' : 'ph-sparkle')}></i>Suggest with Meta AI</button>`}</div>
+      <input class="input" placeholder="mystery, romance, cozy" value=${tags} onInput=${e => setTags(e.target.value)} /></div>
+    <div class="dialog-actions"><button class="btn btn-secondary" onClick=${onClose}>Cancel</button><button class="btn btn-solid" disabled=${!!busy || !title.trim()} onClick=${post}><i class=${'ph ' + (busy === 'post' ? 'ph-spinner spin' : 'ph-upload-simple')}></i>${busy === 'post' ? 'Posting…' : 'Post'}</button></div>
   </div></div>`;
 }
 

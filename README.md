@@ -227,6 +227,22 @@ the project folder.
   project back.
 - **Share:** **Save → Save 2D novel (.html)** or **Save 3D novel (.html)** saves
   one file that runs in any browser.
+- **Community:** click **Community** in the top bar, or open
+  http://localhost:5173/community.html. People can browse, search and play
+  novels posted by others, and like or dislike them. To post, use **Save → Post
+  to Community…** in the editor (**Suggest with Meta AI** writes the tags), or
+  **Post a novel** on the Community page with a saved `.html` novel or a
+  `.gameforge.json` project. **For you** learns from each viewer's likes and
+  dislikes (tags, 2D or 3D, authors), says why it picked a novel, and **Your
+  taste** shows what it has learned. Viewers need no account: their profile is
+  tied to a random id in their browser, so it does not follow them to another
+  browser. Every novel runs sandboxed, so it cannot see your key or projects or
+  send data out.
+  Novels are stored in `data/community` on the server running Game Forge, so
+  people see each other's novels only when they use the same server. To let
+  others in, run it on a server they can reach with `HOST=0.0.0.0`, behind
+  HTTPS. Visitors from other machines get only the Community; the editor and
+  the AI, key and GPU routes stay on the machine running it.
 - **Saving in the game:** players can open **☰ Menu** while playing to
   **Save game** or **Load game** in three slots. The game also autosaves, so the
   title screen offers **Continue**. This works in **Play build** and in exported
@@ -257,6 +273,7 @@ panel instead: put `SAM3D_OBJECTS_REPO` (the sam-3d-objects folder) and
 |---|---|
 | `start-game-forge.bat` | Windows launcher for Game Forge |
 | `server.js` | Local web server; forwards AI calls to Meta (keeps keys server-side) |
+| `community.js` | Community server: novels, likes and dislikes, taste profiles, sandboxed playback |
 | `public/` | The editor: `app.js` (UI), `ai.js` (every Meta AI prompt), `coder.js` (3D Novel: what Muse Wonder is told, and the `FORGE` runtime with your models, `dressBody`, the optional 2D story and music), `pack.js` (asset pack .zip), `player.js` (2D novel player, also used by exported 2D novels), `viewer3d.js` (3D viewer + GLB export), `sample.js` (starter game) |
 | `.env.example` | Optional server settings (API key, model, SAM 3D service URL) |
 | `sam3d-service/server.py` | SAM 3D service (Body and Objects) that returns `.glb` meshes |
