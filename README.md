@@ -6,7 +6,7 @@ with an AI copilot. **3D Novel** is a sandbox-style 3D story game: the dialogue
 box only shows what people say, and you move the story on by doing things in
 the world, like clicking a person to talk, the pan to cook or a door to go to
 another room. **Every AI feature runs on Meta AI models**: **Muse Spark** (Meta
-Model API) for writing, art, music and 3D design, **Muse Wonder** to build the
+Model API) for writing, music and 3D design, **Muse Image** for 2D art, **Muse Wonder** to build the
 3D novel, and Meta's **SAM 3D Body** to turn a picture of a person into a 3D
 body.
 
@@ -16,7 +16,7 @@ body.
 | **New game with Meta AI** | Writes the title, characters, locations, soundtrack and every branching scene (dialogue + choices) |
 | **Forge Assistant** | Chat copilot that reviews your story, brainstorms, and *edits the project directly*. Every change can be undone |
 | **Write this scene** | Rewrites one scene's dialogue, cast and choices from your direction |
-| **2D art** | Paints backgrounds and draws characters as vector art (SVG) |
+| **2D art** | Muse Image generates widescreen backgrounds and character sprites using a Meta Model API key |
 | **Music** | Composes looping melodies that play in the game |
 | **3D assets** | Designs buildings, people and props from 3D shapes; export as `.glb` for Unity, Godot, Unreal or Blender |
 | **3D from an image** | **SAM 3D Body** rebuilds a person from a photo or drawing as a posed 3D body mesh, on your own GPU. Optional **SAM 3D Objects** does any object on a cloud GPU |
@@ -104,11 +104,12 @@ The key is stored in that browser only and sent only to your local Game Forge
 server, which forwards it to Meta.
 
 **One key, every Muse model.** The same key works for all Muse models on Meta
-Model API. Game Forge uses two of them:
+Model API. Game Forge uses these models:
 
 | Setting | Default | Used for |
 |---|---|---|
-| **Model · story, art, music, 3D and the assistant** | `muse-spark-1.1` (or `muse-spark-1.3`) | everything except the 3D Novel code |
+| **Model · story, music, 3D and the assistant** | `muse-spark-1.1` (or `muse-spark-1.3`) | story, music, 3D assets and assistant responses |
+| **2D Novel art** | `muse-image-1.0` | character sprites and backgrounds |
 | **Model · 3D Novel code** | `muse-wonder-1.0` | building the 3D novel (Meta's strongest coding model) |
 
 Click **List the models my key can use** to see every model your account has

@@ -122,6 +122,38 @@ async function handleChat(req, res) {
   }
 }
 
+// 2D novel artwork uses Meta's image endpoint independently of the chat model.
+const IMAGE_BASE = (process.env.MODEL_IMAGE_BASE_URL || DEFAULT_BASE).replace(/\/+$/, '');
+const imageType = b => (b[0] === 0xff ? 'image/jpeg' : b[0] === 0x89 ? 'image/png' : 'image/webp');
+async function handleImage(req, res) {
+  let body;
+  try { body = JSON.parse(await readBody(req)); } catch { return send(res, 400, { error: 'Invalid JSON body' }); }
+  if (typeof body?.prompt !== 'string' || !body.prompt.trim()) return send(res, 400, { error: 'An image prompt is required.' });
+  const key = body.apiKey || (ENV_BASE === DEFAULT_BASE && ENV_KEY);
+  if (!key) return send(res, 401, { error: 'Muse Image needs a Meta Model API key. Select Meta Model API in settings and add your key, or configure the Meta endpoint and MODEL_API_KEY on the server.' });
+  try {
+    const call = payload => fetch(IMAGE_BASE + '/images/generations', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
+      body: JSON.stringify(payload), signal: AbortSignal.timeout(180000),
+    });
+    const bare = { model: 'muse-image-1.0', prompt: body.prompt };
+    let response = await call({ ...bare, size: body.size, response_format: 'b64_json', output_format: 'webp' });
+    // A rejected optional setting gets one retry with just the model and prompt.
+    if (response.status === 400 || response.status === 422) response = await call(bare);
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) return send(res, response.status, { error: result.error?.message || result.detail || 'Muse Image returned HTTP ' + response.status });
+    const item = result.data?.[0];
+    if (typeof item?.b64_json === 'string' && item.b64_json) return send(res, 200, { image: 'data:' + imageType(Buffer.from(item.b64_json.slice(0, 32), 'base64')) + ';base64,' + item.b64_json });
+    if (typeof item?.url === 'string' && /^https?:/.test(item.url)) {
+      const picture = await fetch(item.url, { signal: AbortSignal.timeout(60000) });
+      if (!picture.ok) return send(res, 502, { error: 'Could not download the image from Muse Image (HTTP ' + picture.status + ').' });
+      const bytes = Buffer.from(await picture.arrayBuffer());
+      return send(res, 200, { image: 'data:' + imageType(bytes) + ';base64,' + bytes.toString('base64') });
+    }
+    send(res, 502, { error: 'Muse Image returned no image.' });
+  } catch (error) { send(res, 502, { error: 'Muse Image request failed: ' + error.message }); }
+}
+
 // Lists the models this key can use (GET {base}/models), e.g. every Muse model
 // on Meta Model API. Body: { baseUrl?, apiKey? }
 async function handleModels(req, res) {
@@ -291,11 +323,14 @@ process.on('exit', stopAll);
 for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP', 'SIGBREAK']) process.on(sig, () => { stopAll(); setTimeout(() => process.exit(0), 300); });
 
 function serveStatic(req, res) {
-  const url = new URL(req.url, 'http://x');
-  let p = decodeURIComponent(url.pathname);
+  let p;
+  try { p = decodeURIComponent(new URL(req.url, 'http://x').pathname); }
+  catch (e) { return send(res, 400, 'Invalid URL', 'text/plain'); }
+  if (p.includes('\0')) return send(res, 400, 'Invalid URL', 'text/plain');
   if (p === '/') p = '/index.html';
   const file = path.normalize(path.join(PUBLIC, p));
-  if (!file.startsWith(PUBLIC)) return send(res, 403, 'Forbidden', 'text/plain');
+  const relative = path.relative(PUBLIC, file);
+  if (relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) return send(res, 403, 'Forbidden', 'text/plain');
   fs.readFile(file, (err, buf) => {
     if (err) return send(res, 404, 'Not found', 'text/plain');
     send(res, 200, buf, MIME[path.extname(file)] || 'application/octet-stream');
@@ -308,6 +343,7 @@ http.createServer(async (req, res) => {
   }
   if (req.method === 'POST' && req.url.startsWith('/api/chat')) return handleChat(req, res);
   if (req.method === 'POST' && req.url.startsWith('/api/models')) return handleModels(req, res);
+  if (req.method === 'POST' && req.url === '/api/image') return handleImage(req, res);
   if (req.url.startsWith('/api/sam3d/engines')) return handleEngines(req, res);
   if (req.method === 'POST' && req.url.startsWith('/api/sam3d')) return handleSam3d(req, res);
   if (req.method === 'GET') return serveStatic(req, res);

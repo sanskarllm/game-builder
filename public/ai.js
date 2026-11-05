@@ -1,5 +1,5 @@
 // Meta AI client + every prompt Game Forge sends.
-// All generation (story, dialogue, edits, 2D art, music, 3D models) goes
+// Text generation (story, dialogue, edits, music, 3D models) goes
 // through one function, llama(), which posts to the local server's
 // /api/chat proxy → Meta Model API (Muse Spark), or a host serving Meta Llama.
 
@@ -111,8 +111,8 @@ export function normalizeGame(g) {
     characters: [], backgrounds: [], music: [], scenes: [], assets3d: g.assets3d || [],
   };
   const uniq = (list, key) => { const seen = new Set(); return list.filter(x => x && x[key] && !seen.has(x[key]) && seen.add(x[key])); };
-  game.characters = uniq((g.characters || []).map(c => ({ name: String(c.name || '').trim(), role: c.role || 'Minor', desc: c.desc || '', color: /^#[0-9a-f]{6}$/i.test(c.color) ? c.color : undefined, svg: c.svg, img: c.img, model3d: typeof c.model3d === 'string' ? c.model3d : undefined })), 'name');
-  game.backgrounds = uniq((g.backgrounds || []).map(b => ({ name: String(b.name || '').trim(), desc: b.desc || '', svg: b.svg, img: b.img })), 'name');
+  game.characters = uniq((g.characters || []).map(c => ({ name: String(c.name || '').trim(), role: c.role || 'Minor', desc: c.desc || '', color: /^#[0-9a-f]{6}$/i.test(c.color) ? c.color : undefined, svg: c.svg, img: c.img, artModel: c.artModel, model3d: typeof c.model3d === 'string' ? c.model3d : undefined })), 'name');
+  game.backgrounds = uniq((g.backgrounds || []).map(b => ({ name: String(b.name || '').trim(), desc: b.desc || '', svg: b.svg, img: b.img, artModel: b.artModel })), 'name');
   game.music = uniq((g.music || []).map(m => ({ ...m, name: String(m.name || '').trim(), mood: m.mood || '' })), 'name');
 
   let scenes = (g.scenes || []).filter(s => s && typeof s === 'object');
@@ -212,7 +212,7 @@ export function applyActions(game, actions) {
       }
       else if (a.type === 'delete_scene' && scene(a.id) && g.scenes.length > 1) { g.scenes = g.scenes.filter(s => s.id !== a.id); g.scenes.forEach(s => s.choices = s.choices.filter(c => c.to !== a.id)); done.push('Deleted scene ' + a.id); }
       else if (a.type === 'add_character' && a.name && !g.characters.some(c => c.name === a.name)) { g.characters.push(pick(a, ['name', 'role', 'desc', 'color'])); done.push('New character ' + a.name); }
-      else if (a.type === 'update_character') { const c = g.characters.find(c => c.name === a.name); if (c) { Object.assign(c, pick(a, ['role', 'desc', 'color'])); if (a.desc) { delete c.svg; } done.push('Updated ' + a.name); } }
+      else if (a.type === 'update_character') { const c = g.characters.find(c => c.name === a.name); if (c) { Object.assign(c, pick(a, ['role', 'desc', 'color'])); if (a.desc) { delete c.svg; if (c.artModel) { delete c.img; delete c.artModel; } } done.push('Updated ' + a.name); } }
       else if (a.type === 'add_background' && a.name && !g.backgrounds.some(b => b.name === a.name)) { g.backgrounds.push(pick(a, ['name', 'desc'])); done.push('New background ' + a.name); }
       else if (a.type === 'add_music' && a.name && !g.music.some(m => m.name === a.name)) { g.music.push(pick(a, ['name', 'mood'])); done.push('New track ' + a.name); }
       else if (a.type === 'set_game') { Object.assign(g, pick(a, ['title', 'logline'])); done.push('Updated game info'); }
@@ -233,25 +233,77 @@ Use only existing character names. 3-7 lines.`;
   return j;
 }
 
-// ---------- 2D art (Meta AI writes SVG) ----------
-export async function paintBackground(name, desc, style) {
-  const system = `You are an illustrator who paints with SVG code. Return ONLY one <svg> element, no prose.
-Requirements: xmlns="http://www.w3.org/2000/svg", viewBox="0 0 1600 900", preserveAspectRatio="xMidYMid slice". Fill the entire canvas (start with a full-size background rect).
-Use linearGradient/radialGradient, layered silhouettes, lighting and atmospheric depth. 25-70 shapes. No text, no <image>, no external references, no scripts, no CSS animations.`;
-  const raw = await llama([{ role: 'system', content: system }, { role: 'user', content: `Paint a visual-novel background: "${name}". ${desc || ''}\nArt style: ${style || 'painterly, cinematic lighting'}.` }], { temperature: 0.7, maxTokens: 6000 });
-  const svg = window.ForgePlayer.sanitizeSvg(raw);
-  if (!svg) throw new Error('Meta AI did not return an SVG.');
-  return svg;
+// ---------- 2D novel artwork ----------
+async function museImage(prompt, size) {
+  const metaEndpoint = settings.baseUrl?.replace(/\/+$/, '') === PROVIDERS[0].baseUrl;
+  const response = await fetch('/api/image', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt, size, apiKey: settings.provider === 'muse' && metaEndpoint ? settings.apiKey : undefined }),
+  });
+  const data = await response.json();
+  if (!response.ok || !data.image) throw new Error(data.error || 'Muse Image returned no artwork.');
+  return data.image;
 }
 
+export function paintBackground(name, desc, style) {
+  return museImage(`Wide visual novel setting: ${name}. ${desc || ''}. ${style || 'Painterly cinematic illustration'}. Environment only, no lettering, borders or UI.`, '1600x900');
+}
+
+// A backdrop colour the character is not wearing, so cutting it out cannot eat
+// into their clothes.
+const BACKDROPS = [
+  ['pure magenta (#ff00ff)', /pink|magenta|fuchsia|rose|purple|violet|lilac|mauve/i],
+  ['pure green (#00ff00)', /green|emerald|lime|olive|teal|jade/i],
+  ['pure blue (#0000ff)', /blue|navy|azure|cyan|sapphire/i],
+];
+
 export async function paintCharacter(name, desc, style) {
-  const system = `You are a character artist who draws with SVG code. Return ONLY one <svg> element, no prose.
-Requirements: xmlns="http://www.w3.org/2000/svg", viewBox="0 0 400 800". TRANSPARENT background (no full-canvas rect). One character, standing, facing the viewer, head near the top (y 80-300), body reaching the bottom edge (y 800), centered on x=200.
-Clear face (eyes, brows, mouth), hair, distinctive clothing, simple shading with gradients. 25-60 shapes. No text, no <image>, no scripts.`;
-  const raw = await llama([{ role: 'system', content: system }, { role: 'user', content: `Draw the visual-novel character "${name}". ${desc || ''}\nArt style: ${style || 'clean anime-inspired flat shading'}.` }], { temperature: 0.7, maxTokens: 6000 });
-  const svg = window.ForgePlayer.sanitizeSvg(raw);
-  if (!svg) throw new Error('Meta AI did not return an SVG.');
-  return svg;
+  const text = name + ' ' + (desc || '') + ' ' + (style || '');
+  const backdrop = (BACKDROPS.find(([, used]) => !used.test(text)) || BACKDROPS[0])[0];
+  const image = await museImage(`Full-length visual novel sprite: ${name}. ${desc || ''}. ${style || 'Clean anime-inspired shading'}. One centered standing figure on a perfectly flat ${backdrop} backdrop. Keep that colour out of the figure. No shadows on the backdrop, labels or borders.`, '512x1024');
+  const sprite = new Image();
+  await new Promise((res, rej) => { sprite.onload = res; sprite.onerror = () => rej(new Error('Could not read the image from Muse Image.')); sprite.src = image; });
+  const canvas = document.createElement('canvas');
+  const scale = Math.min(1, 1024 / sprite.height);
+  canvas.width = Math.max(1, Math.round(sprite.width * scale));
+  canvas.height = Math.max(1, Math.round(sprite.height * scale));
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(sprite, 0, 0, canvas.width, canvas.height);
+  const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  cutBackdrop(pixels);
+  ctx.putImageData(pixels, 0, 0);
+  return canvas.toDataURL('image/webp', 0.9);
+}
+
+// Removes the backdrop, read from the image corners: everything joined to the
+// image edge, plus exact-colour pockets (the gap between an arm and the body).
+// Cloth of a similar colour inside the figure stays.
+function cutBackdrop({ width: w, height: h, data: px }) {
+  const corners = [0, w - 1, (h - 1) * w, h * w - 1];
+  const key = [0, 1, 2].map(c => corners.reduce((sum, k) => sum + px[k * 4 + c], 0) / 4);
+  const away = k => Math.abs(px[k * 4] - key[0]) + Math.abs(px[k * 4 + 1] - key[1]) + Math.abs(px[k * 4 + 2] - key[2]);
+  const cut = new Uint8Array(w * h), stack = [];
+  const reach = k => { if (!cut[k] && away(k) < 120) { cut[k] = 1; stack.push(k); } };
+  for (let x = 0; x < w; x++) { reach(x); reach((h - 1) * w + x); }
+  for (let y = 0; y < h; y++) { reach(y * w); reach(y * w + w - 1); }
+  while (stack.length) {
+    const k = stack.pop(), x = k % w;
+    if (x > 0) reach(k - 1); if (x < w - 1) reach(k + 1);
+    if (k >= w) reach(k - w); if (k < (h - 1) * w) reach(k + w);
+  }
+  for (let k = 0; k < cut.length; k++) if (!cut[k] && away(k) < 36) cut[k] = 1;
+  for (let k = 0; k < cut.length; k++) if (cut[k]) px[k * 4 + 3] = 0;
+  // Clean the edge: pixels within 2 px of the cut lose the backdrop's tint and
+  // the outermost ring is softened, so no fringe shows on bright scenes.
+  const hot = [0, 1, 2].filter(c => key[c] > 128), cold = [0, 1, 2].filter(c => key[c] <= 128);
+  const nearCut = (x, y, r) => { for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) { const nx = x + dx, ny = y + dy; if (nx >= 0 && ny >= 0 && nx < w && ny < h && cut[ny * w + nx]) return true; } return false; };
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const k = y * w + x, i = k * 4;
+    if (cut[k] || !nearCut(x, y, 2)) continue;
+    const spill = Math.min(...hot.map(c => px[i + c])) - Math.max(...cold.map(c => px[i + c]));
+    if (spill > 10) for (const c of hot) px[i + c] -= spill;
+    if (nearCut(x, y, 1)) px[i + 3] = 170;
+  }
 }
 
 // ---------- music (Meta AI composes a note sequence) ----------

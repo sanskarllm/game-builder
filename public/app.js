@@ -31,9 +31,19 @@ const blobs = (() => {
     put: (k, v) => { if (saved.has(k)) return; saved.add(k); tx('readwrite', s => s.put(v, k)).catch(() => saved.delete(k)); },
   };
 })();
+// Images are megabytes too, so characters and backgrounds keep theirs in
+// IndexedDB as well. The id comes from the picture, so a new image gets a new id.
+function artId(img) {
+  let h = 2166136261;
+  for (let i = 0; i < img.length; i += 97) h = Math.imul(h ^ img.charCodeAt(i), 16777619);
+  return 'art_' + img.length + '_' + (h >>> 0).toString(36);
+}
+function persistArt(list) {
+  return (list || []).map(x => { if (!x.img) return x; const imgId = artId(x.img); blobs.put(imgId, x.img); const { img, ...rest } = x; return { ...rest, imgId }; });
+}
 function persist(game) {
   const assets3d = (game.assets3d || []).map(a => { if (!a.glb) return a; blobs.put(a.glbId, a.glb); const { glb, ...rest } = a; return rest; });
-  return store.set('gf.project', { ...game, assets3d });
+  return store.set('gf.project', { ...game, assets3d, characters: persistArt(game.characters), backgrounds: persistArt(game.backgrounds) });
 }
 // Draw any image URL (SVG included) onto a transparent canvas → PNG data URL.
 function toPng(url, w = 512, h = 1024) {
@@ -110,6 +120,7 @@ function App() {
   useEffect(() => { if (mode !== 'play') FP.music.stop(); }, [mode]);
   useEffect(() => {
     for (const a of game.assets3d) if (a.glbId && !a.glb) blobs.get(a.glbId).then(glb => glb && setGame(g => ({ ...g, assets3d: g.assets3d.map(x => x.glbId === a.glbId ? { ...x, glb } : x) })));
+    for (const list of ['characters', 'backgrounds']) for (const a of game[list]) if (a.imgId && !a.img) blobs.get(a.imgId).then(img => img && setGame(g => ({ ...g, [list]: g[list].map(x => x.imgId === a.imgId && !x.img ? { ...x, img } : x) })));
   }, []);
 
   function notify(text, err) { setToast({ text, err }); clearTimeout(notify.t); notify.t = setTimeout(() => setToast(null), err ? 6000 : 2600); }
@@ -139,21 +150,19 @@ function App() {
   // ---- AI actions ----
   const mark = (list, name, busy) => update(g => { const x = g[list].find(x => x.name === name); if (x) { if (busy) x.busy = true; else delete x.busy; } return g; });
   async function paintBg(name, desc) {
-    if (!ensureAI()) return;
     const b = gameRef.current.backgrounds.find(x => x.name === name); desc = desc != null ? desc : b && b.desc;
     mark('backgrounds', name, true);
     try {
-      const svg = await runJob('Paint background · ' + name, () => AI.paintBackground(name, desc));
-      update(g => { const x = g.backgrounds.find(x => x.name === name); if (x) { x.svg = svg; delete x.img; delete x.busy; } return g; }, true);
+      const image = await runJob('Paint background · ' + name, () => AI.paintBackground(name, desc));
+      update(g => { const x = g.backgrounds.find(x => x.name === name); if (x) { x.img = image; x.artModel = 'muse-image-1.0'; delete x.svg; delete x.busy; } return g; }, true);
     } catch (e) { mark('backgrounds', name, false); }
   }
   async function paintChar(name, desc) {
-    if (!ensureAI()) return;
     const c = gameRef.current.characters.find(x => x.name === name); desc = desc != null ? desc : c && c.desc;
     mark('characters', name, true);
     try {
-      const svg = await runJob('Draw character · ' + name, () => AI.paintCharacter(name, desc));
-      update(g => { const x = g.characters.find(x => x.name === name); if (x) { x.svg = svg; delete x.img; delete x.busy; } return g; }, true);
+      const image = await runJob('Draw character · ' + name, () => AI.paintCharacter(name, desc));
+      update(g => { const x = g.characters.find(x => x.name === name); if (x) { x.img = image; x.artModel = 'muse-image-1.0'; delete x.svg; delete x.busy; } return g; }, true);
     } catch (e) { mark('characters', name, false); }
   }
   async function compose(name, mood) {
@@ -202,11 +211,11 @@ function App() {
       if (opts.paint) {
         for (const b of ng.backgrounds) {
           setBuilding('Painting ' + b.name + '…');
-          try { const svg = await runJob('Paint background · ' + b.name, () => AI.paintBackground(b.name, b.desc)); update(g => { const x = g.backgrounds.find(x => x.name === b.name); if (x) x.svg = svg; return g; }); } catch (e) { /* keep placeholder */ }
+          try { const image = await runJob('Paint background · ' + b.name, () => AI.paintBackground(b.name, b.desc)); update(g => { const x = g.backgrounds.find(x => x.name === b.name); if (x) { x.img = image; x.artModel = 'muse-image-1.0'; delete x.svg; } return g; }); } catch (e) { /* keep placeholder */ }
         }
         for (const c of ng.characters) {
           setBuilding('Drawing ' + c.name + '…');
-          try { const svg = await runJob('Draw character · ' + c.name, () => AI.paintCharacter(c.name, c.desc)); update(g => { const x = g.characters.find(x => x.name === c.name); if (x) x.svg = svg; return g; }); } catch (e) { /* keep placeholder */ }
+          try { const image = await runJob('Draw character · ' + c.name, () => AI.paintCharacter(c.name, c.desc)); update(g => { const x = g.characters.find(x => x.name === c.name); if (x) { x.img = image; x.artModel = 'muse-image-1.0'; delete x.svg; } return g; }); } catch (e) { /* keep placeholder */ }
         }
       }
     } catch (e) { /* toast already shown */ }
@@ -423,18 +432,18 @@ function Sidebar(p) {
     del: () => update(g => { g.assets3d = g.assets3d.filter(x => x.name !== a.name); return g; }, true),
   }));
   else if (activeTab === 'characters') items = game.characters.map(c => ({
-    key: c.name, name: c.name, text: [c.name, c.role, c.desc], meta: c.busy ? 'Meta AI is drawing…' : (c.role || '') + (c.svg ? ' · AI art' : c.img ? ' · uploaded' : ' · placeholder'), img: FP.charUrl(game, c.name), contain: true, busy: c.busy,
+    key: c.name, name: c.name, text: [c.name, c.role, c.desc], meta: c.busy ? 'Meta AI is drawing…' : (c.role || '') + (c.artModel ? ' · Muse Image' : c.svg ? ' · AI art' : c.img ? ' · uploaded' : ' · placeholder'), img: FP.charUrl(game, c.name), contain: true, busy: c.busy,
     on: cur && cur.chars.some(x => x.name === c.name),
     onClick: () => updScene(s => { if (!s.chars.some(x => x.name === c.name)) { const used = s.chars.map(x => x.pos); s.chars.push({ name: c.name, expr: 'neutral', pos: ['C', 'L', 'R'].find(q => !used.includes(q)) || 'C' }); } }, true),
-    paint: () => paintChar(c.name), paintTitle: 'Draw with Meta AI',
+    paint: () => paintChar(c.name), paintTitle: 'Draw with Muse Image',
     lift: () => toPng(FP.charUrl(game, c.name)).then(image => makeFromImage({ name: c.name + ' 3D', cat: 'Human', image, kind: 'body' })).catch(e => notify(e.message, true)),
     del: () => update(g => { g.characters = g.characters.filter(x => x.name !== c.name); g.scenes.forEach(s => s.chars = s.chars.filter(x => x.name !== c.name)); return g; }, true),
   }));
   else if (activeTab === 'backgrounds') items = game.backgrounds.map(b => ({
-    key: b.name, name: b.name, text: [b.name, b.desc], meta: b.busy ? 'Meta AI is painting…' : (b.svg ? 'AI art' : b.img ? 'Uploaded' : 'Placeholder') + ' · ' + game.scenes.filter(s => s.bg === b.name).length + ' scenes', img: FP.bgUrl(game, b.name), busy: b.busy,
+    key: b.name, name: b.name, text: [b.name, b.desc], meta: b.busy ? 'Meta AI is painting…' : (b.artModel ? 'Muse Image' : b.svg ? 'AI art' : b.img ? 'Uploaded' : 'Placeholder') + ' · ' + game.scenes.filter(s => s.bg === b.name).length + ' scenes', img: FP.bgUrl(game, b.name), busy: b.busy,
     on: cur && cur.bg === b.name,
     onClick: () => updScene(s => { s.bg = b.name; }, true),
-    paint: () => paintBg(b.name), paintTitle: 'Paint with Meta AI',
+    paint: () => paintBg(b.name), paintTitle: 'Paint with Muse Image',
     del: () => update(g => { g.backgrounds = g.backgrounds.filter(x => x.name !== b.name); return g; }, true),
   }));
   else items = game.music.map(m => ({
@@ -912,7 +921,7 @@ function EditScene(p) {
     </div>
     <div class="rule"></div>
     <div class="stack">
-      <div class="row"><span class="label" style="flex:1">Background</span><button class="btn btn-ghost" style="font-size:12px" onClick=${() => paintBg(cur.bg)}><i class="ph ph-paint-brush"></i>Paint with Meta AI</button></div>
+      <div class="row"><span class="label" style="flex:1">Background</span><button class="btn btn-ghost" style="font-size:12px" onClick=${() => paintBg(cur.bg)}><i class="ph ph-paint-brush"></i>Paint with Muse Image</button></div>
       <select class="input" value=${cur.bg} onChange=${e => updScene(s => { s.bg = e.target.value; }, true)}>${game.backgrounds.map(b => html`<option value=${b.name} selected=${b.name === cur.bg}>${b.name}</option>`)}</select>
     </div>
     <div class="stack">
@@ -1082,7 +1091,7 @@ function Settings({ settings, setSettings, server, aiReady, prov, notify }) {
       <div class="row"><i class="ph ph-sparkle" style="color:var(--color-meta)"></i><span style="font-size:14px;font-weight:500;flex:1">Meta AI connection</span><span class=${'tag ' + (aiReady ? 'tag-accent' : 'tag-neutral')}>${aiReady ? 'Ready' : 'Needs key'}</span></div>
       <span style="font-size:12px;color:var(--color-neutral-300)">Every AI feature in Game Forge — game writing, dialogue, the assistant, 2D art, music and 3D models — runs on Meta AI models: Muse Spark by default, or Meta Llama.</span>
       <div class="field"><label>Provider</label><select class="input" value=${settings.provider} onChange=${e => choose(e.target.value)}>${AI.PROVIDERS.map(x => html`<option value=${x.id} selected=${x.id === settings.provider}>${x.label}</option>`)}</select></div>
-      <div class="field"><label>Model · story, art, music, 3D and the assistant</label><input class="input mono" list="models" style="font-size:12px" value=${settings.model} onInput=${e => setSettings({ ...settings, model: e.target.value })} />
+      <div class="field"><label>Model · story, music, 3D and the assistant</label><input class="input mono" list="models" style="font-size:12px" value=${settings.model} onInput=${e => setSettings({ ...settings, model: e.target.value })} />
         <datalist id="models">${known.map(m => html`<option value=${m}></option>`)}</datalist></div>
       <div class="field"><label>Model · 3D Novel code${prov.codeModel ? ' (Muse Wonder writes the best code)' : ''}</label><input class="input mono" list="models" style="font-size:12px" placeholder=${prov.codeModel || settings.model} value=${settings.codeModel || ''} onInput=${e => setSettings({ ...settings, codeModel: e.target.value.trim() })} /></div>
       <button class="btn btn-secondary" disabled=${listing && listing.busy} onClick=${listAll}><i class=${'ph ' + (listing && listing.busy ? 'ph-spinner spin' : 'ph-list-magnifying-glass')}></i>List the models my key can use</button>
@@ -1147,7 +1156,7 @@ function NewGameDialog({ onClose, onBuild, aiReady, goSettings }) {
       <div class="field"><label>Tone</label><select class="input" value=${tone} onChange=${e => setTone(e.target.value)}>${['Atmospheric', 'Lighthearted', 'Dark', 'Epic', 'Cozy', 'Tense'].map(g => html`<option value=${g} selected=${g === tone}>${g}</option>`)}</select></div>
     </div>
     <div class="row"><span class="label" style="flex:1">Length</span><div class="seg">${[['short', 'Short'], ['medium', 'Medium'], ['long', 'Long']].map(([id, l]) => html`<button class=${'seg-opt' + (length === id ? ' on' : '')} onClick=${() => setLength(id)}>${l}</button>`)}</div></div>
-    <label class="check"><input type="checkbox" checked=${paint} onChange=${e => setPaint(e.target.checked)} />Also paint backgrounds and characters with Meta AI (takes longer)</label>
+    <label class="check"><input type="checkbox" checked=${paint} onChange=${e => setPaint(e.target.checked)} />Also paint backgrounds and characters with Muse Image (takes longer)</label>
     ${!aiReady && html`<div class="note"><i class="ph ph-key" style="color:var(--color-accent)"></i><span style="flex:1">Connect a Meta AI API key first.</span><button class="btn btn-ghost" onClick=${goSettings}>Add key</button></div>`}
     <div class="dialog-actions"><button class="btn btn-secondary" onClick=${onClose}>Cancel</button>
       <button class="btn btn-solid" disabled=${!idea.trim()} onClick=${() => onBuild({ idea: idea.trim(), genre, tone, length, paint })}><i class="ph ph-sparkle"></i>Build my game</button></div>
@@ -1195,7 +1204,7 @@ function CreateDialog(p) {
       setDialog(null);
       return toPng(img.url, 1024, 1024).then(image => makeFromImage({ name: nm, cat: kind, image, mask, textured, kind: samKind }));
     }
-    if (!ensureAI()) { setDialog(null); return; }
+    if ((is3d || kind === 'music') && !ensureAI()) { setDialog(null); return; }
     let nm = name.trim() || 'Untitled ' + uid().slice(0, 3);
     if (kind === 'music' && !/\.\w+$/.test(nm)) nm = slug(nm) + '.mp3';
     const exists = { characters: game.characters, backgrounds: game.backgrounds, music: game.music }[kind] || game.assets3d;
@@ -1228,7 +1237,7 @@ function CreateDialog(p) {
       ${samKind === 'objects' && html`<label class="check"><input type="checkbox" checked=${textured} onChange=${e => setTextured(e.target.checked)} />Bake a texture (sharper, slower) instead of vertex colours</label>`}
       <div class="note"><i class="ph ph-cube" style="color:var(--color-meta)"></i><span style="flex:1">${samKind === 'body' ? 'SAM 3D Body rebuilds the person as a posed 3D body mesh (no clothes or texture). Runs on your own GPU.' : 'SAM 3D Objects reconstructs a full textured mesh. Needs a 32 GB+ Linux GPU service.'}</span></div>` : html`
       <div class="field"><label>${kind === 'music' ? 'Mood' : 'Prompt'}</label><textarea class="input" value=${desc} placeholder=${PH[1]} onInput=${e => setDesc(e.target.value)}></textarea></div>
-      <div class="note"><i class="ph ph-sparkle" style="color:var(--color-meta)"></i><span style="flex:1">${kind === 'music' ? 'Meta AI composes a loopable melody that plays in-game.' : is3d ? 'Meta AI builds the model from 3D primitives; export as .glb.' : 'Meta AI paints this as vector art (SVG) — crisp at any size.'}</span></div>`}
+      <div class="note"><i class="ph ph-sparkle" style="color:var(--color-meta)"></i><span style="flex:1">${kind === 'music' ? 'Meta AI composes a loopable melody that plays in-game.' : is3d ? 'Meta AI builds the model from 3D primitives; export as .glb.' : 'Muse Image illustrates this asset for your 2D novel.'}</span></div>`}
     <div class="dialog-actions"><button class="btn btn-secondary" onClick=${onClose}>Cancel</button><button class="btn btn-solid" onClick=${go}><i class="ph ph-sparkle"></i>Create</button></div>
   </div></div>`;
 }

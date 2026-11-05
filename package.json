@@ -3,6 +3,6 @@
   "version": "1.0.0",
   "description": "AI game assistant and game builder powered by Meta Llama",
   "private": true,
-  "scripts": { "start": "node server.js" },
+  "scripts": { "start": "node server.js", "test": "node --test" },
   "engines": { "node": ">=18" }
 }
