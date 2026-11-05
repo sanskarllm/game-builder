@@ -40,6 +40,22 @@
 .fp-slot:hover:not(:disabled){border-color:#9184d9;background:rgba(145,132,217,.12)}
 .fp-slot:disabled{opacity:.45;cursor:default}
 .fp-note{font-size:12px;color:#b5abfc}
+.fp-ask{display:flex;gap:8px;margin-top:10px}
+.fp-ask input{flex:1;min-width:0;padding:9px 12px;border-radius:8px;border:1px solid #9184d9;background:rgba(5,6,12,.7);color:#e9e9ed;font:inherit;font-size:clamp(12px,1.8cqi,16px);user-select:text}
+.fp-ask input:focus{outline:2px solid #b5abfc;outline-offset:1px}
+.fp-ask button{padding:9px 16px;border-radius:8px;border:1px solid #9184d9;background:#5d5294;color:#fff;font:inherit;font-size:clamp(12px,1.8cqi,16px);cursor:pointer}
+.fp-knows{max-width:560px;font-size:clamp(12px,1.7cqi,15px);color:#cfd3e5}
+.fp-knows b{color:#d2cefd;font-weight:600}
+.fp-mode{display:flex;flex-direction:column;gap:2px;max-width:280px;padding:12px 16px;border-radius:10px;border:1px solid #9184d9;background:rgba(16,18,30,.7);color:#e9e9ed;font:inherit;text-align:left;cursor:pointer}
+.fp-mode b{font-size:15px;color:#d2cefd}
+.fp-mode span{font-size:12px;color:#b2b6ca}
+.fp-mode:hover{background:rgba(145,132,217,.2)}
+.fp-writing{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center}
+.fp-dots{display:flex;gap:6px}
+.fp-dots i{width:8px;height:8px;border-radius:50%;background:#b5abfc;animation:fp-dot 1.2s infinite ease-in-out}
+.fp-dots i:nth-child(2){animation-delay:.15s}.fp-dots i:nth-child(3){animation-delay:.3s}
+@keyframes fp-dot{0%,80%,100%{opacity:.25}40%{opacity:1}}
+@media (prefers-reduced-motion:reduce){.fp-dots i{animation:none}}
 .fp-fade{animation:fp-in .6s ease}.fp-dissolve{animation:fp-in 1.1s ease}.fp-slide-left{animation:fp-slide .5s ease}
 @keyframes fp-in{from{opacity:0}to{opacity:1}}
 @keyframes fp-up{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
@@ -187,7 +203,9 @@
 
   // ---------- scene renderer ----------
   // opts: { scene, line, onScene(id), onLine(i), music:bool, showTags:bool, onEnd(),
-  //         onChange({scene, line}) after every step, menu: show the Menu button, onMenu() }
+  //         onChange({scene, line}) after every step, menu: show the Menu button, onMenu(),
+  //         onChoice(scene, choice) when a choice is picked,
+  //         onAct(text) when the player types what they do (scenes with ask: true) }
   function mount(el, game, opts) {
     injectCss();
     opts = opts || {};
@@ -215,10 +233,12 @@
         <div class="fp-box" data-act="next">
           ${L.who ? `<div class="fp-who">${esc(L.who)}</div>` : ''}
           <div class="fp-text">${esc(L.text)}</div>
-          <div class="fp-count">${atEnd && !choices.length ? 'The End · click to finish' : (line + 1) + ' / ' + lines.length}</div>
+          ${atEnd && scene.ask ? `<form class="fp-ask" data-ask><input maxlength="300" autocomplete="off" aria-label="What do you do?" placeholder="What do you do?"><button type="submit">Do it</button></form>` : ''}
+          ${scene.ask && atEnd ? '' : `<div class="fp-count">${atEnd && !choices.length ? 'The End · click to finish' : (line + 1) + ' / ' + lines.length}</div>`}
         </div>
       </div>`;
       first = false;
+      const box = el.querySelector('[data-ask] input'); if (box) box.focus({ preventScroll: true });
       if (opts.music) music.play(game, scene.music);
       if (opts.onChange) opts.onChange({ scene: scene.id, line });
     }
@@ -227,6 +247,7 @@
       if (ch) {
         const c = scene.choices[Number(ch.dataset.choice)];
         if (!c) return;
+        if (opts.onChoice) opts.onChoice(scene, c);
         if (opts.onScene) return opts.onScene(c.to);
         const next = scenes.find(s => s.id === c.to); if (next) { scene = next; line = 0; first = true; draw(); }
         return;
@@ -237,11 +258,18 @@
       if (act.dataset.act === 'menu') { if (opts.onMenu) opts.onMenu(); return; }
       const lines = scene.lines && scene.lines.length ? scene.lines : [1];
       if (line < lines.length - 1) { line++; if (opts.onLine) opts.onLine(line); draw(); }
-      else if (!(scene.choices || []).length && opts.onEnd) opts.onEnd();
+      else if (!(scene.choices || []).length && !scene.ask && opts.onEnd) opts.onEnd(scene);
+    }
+    function onSubmit(e) {
+      const form = e.target.closest('[data-ask]'); if (!form) return;
+      e.preventDefault();
+      const text = form.querySelector('input').value.trim();
+      if (text && opts.onAct) opts.onAct(scene, text);
     }
     el.addEventListener('click', onClick);
+    el.addEventListener('submit', onSubmit);
     draw();
-    return { destroy() { el.removeEventListener('click', onClick); }, state: () => ({ scene: scene.id, line }) };
+    return { destroy() { el.removeEventListener('click', onClick); el.removeEventListener('submit', onSubmit); }, state: () => ({ scene: scene.id, line }) };
   }
 
   // ---------- save slots (player progress) ----------
@@ -264,18 +292,99 @@
 
   // Full standalone game: title screen → scenes → ending → restart,
   // with autosave, Continue, and three save slots.
-  function boot(el, game) {
+  // options.ai: { ready: Promise<boolean>, ask(request): Promise<result> } lets
+  // the story carry on with Meta AI after The End. In the Community the novel
+  // has no network, so it asks the page around it (see frameBridge).
+  function boot(el, source, options) {
     injectCss();
     let ctl = null;
+    const game = JSON.parse(JSON.stringify(source)); // the story grows, the project must not
     const store = saves(game);
     const resumable = s => s && (game.scenes || []).some(x => x.id === s.scene);
+    const ai = (options && options.ai) || frameBridge();
+    const baseCount = (game.scenes || []).length;
+    const infKey = 'forge-infinity:' + hash((game.title || '') + '|' + (game.scenes || []).map(s => s.id).join(','));
+    let inf = { path: [], memory: { likes: [], dislikes: [], summary: '' }, part: 1, count: 0, ended: 'The End' };
+    let endedAt = null; // the ending the player actually reached
+    function saveInf() {
+      try { localStorage.setItem(infKey, JSON.stringify({ inf, scenes: game.scenes.slice(baseCount), characters: game.characters, backgrounds: game.backgrounds.map(b => ({ name: b.name, desc: b.desc })) })); } catch (e) { /* storage blocked: it just will not resume */ }
+    }
+    try {
+      const was = JSON.parse(localStorage.getItem(infKey));
+      if (was && was.inf) {
+        inf = was.inf; game.scenes.push(...(was.scenes || []));
+        (was.characters || []).forEach(c => { if (!game.characters.some(x => x.name === c.name)) game.characters.push({ name: c.name, desc: c.desc, role: c.role || 'Minor' }); });
+        (was.backgrounds || []).forEach(b => { if (!game.backgrounds.some(x => x.name === b.name)) game.backgrounds.push(b); });
+      }
+    } catch (e) { /* nothing saved */ }
+    const gist = s => (s.lines || []).slice(-2).map(l => (l.who && l.who !== 'Narrator' ? l.who + ': ' : '') + l.text).join(' ').slice(0, 240);
+    const knows = () => {
+      const m = inf.memory || {}, a = [];
+      if ((m.likes || []).length) a.push('<b>You seem to enjoy:</b> ' + m.likes.slice(0, 5).map(esc).join(', '));
+      if ((m.dislikes || []).length) a.push('<b>You seem to avoid:</b> ' + m.dislikes.slice(0, 4).map(esc).join(', '));
+      return a.length ? '<p class="fp-knows">' + a.join('<br>') + '</p>' : '';
+    };
+    const PARTS = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten'];
+    const partName = n => 'Part ' + (PARTS[n] || n);
 
     function play(from) {
       if (ctl) ctl.destroy();
       ctl = mount(el, game, {
         scene: from && from.scene, line: from ? from.line : 0, music: true, menu: true, onEnd: ending, onMenu: menu,
         onChange: st => store.put('auto', st),
+        onChoice: (s, c) => { inf.path.push({ scene: s.title, gist: gist(s), did: c.text }); saveInf(); },
+        onAct: (s, text) => write('next', text, s),
       });
+    }
+    // Fresh playthrough: the story goes back to the author's, but what it has
+    // learned about the player stays.
+    function restart() {
+      game.scenes.length = baseCount;
+      inf = { path: [], memory: { ...inf.memory, summary: '' }, part: 1, count: 0, ended: 'The End' };
+      saveInf(); play(null);
+    }
+    function addCast(r) {
+      (r.newCharacters || []).forEach(c => { if (!game.characters.some(x => x.name === c.name)) game.characters.push({ name: c.name, desc: c.desc, role: 'Minor' }); });
+      (r.newLocations || []).forEach(l => { if (!game.backgrounds.some(x => x.name === l.name)) game.backgrounds.push({ name: l.name, desc: l.desc }); });
+    }
+    const lastScene = () => endedAt || game.scenes[game.scenes.length - 1] || {};
+    function waitScreen(text, bg) {
+      if (ctl) ctl.destroy(); ctl = null;
+      el.innerHTML = `<div class="fp-stage"><img class="fp-bg" alt="" src="${bgUrl(game, bg)}"><div class="fp-title"><div class="fp-writing" role="status"><div class="fp-dots"><i></i><i></i><i></i></div><p>${esc(text)}</p><span class="fp-small">Written live by Meta AI</span></div></div></div>`;
+    }
+    // Ask Meta AI for what comes next. mode: 'next' (one scene) or 'part' (a chapter).
+    async function write(mode, action, from) {
+      const at = from || lastScene();
+      if (action) inf.path.push({ scene: at.title, gist: gist(at), did: action });
+      saveInf();
+      const part = inf.part + 1, retry = () => { if (action) inf.path.pop(); write(mode, action, from); };
+      waitScreen(mode === 'part' ? 'Writing ' + partName(part) + ' from the choices you made…' : 'The story is writing what happens next…', at.bg);
+      const fromTitle = el.firstElementChild;
+      try {
+        const r = await ai.ask({
+          mode, action: action || '', part, memory: inf.memory, path: inf.path, lastLocation: at.bg,
+          story: { title: game.title, logline: game.logline, characters: game.characters.map(c => ({ name: c.name, desc: c.desc })), locations: game.backgrounds.map(b => ({ name: b.name, desc: b.desc })) },
+        });
+        if (el.firstElementChild !== fromTitle) return; // the player left this screen
+        addCast(r); inf.memory = r.memory || inf.memory;
+        if (mode === 'next') {
+          const id = 'x' + (++inf.count);
+          game.scenes.push({ ...r.scene, id, ask: true, transition: 'Fade', music: at.music || '', choices: [] });
+          saveInf(); play({ scene: id, line: 0 });
+        } else {
+          inf.part = part; inf.ended = 'End of ' + partName(part);
+          const pre = 'p' + part + '_';
+          r.scenes.forEach(s => game.scenes.push({ ...s, id: pre + s.id, transition: 'Fade', music: at.music || '', choices: s.choices.map(c => ({ text: c.text, to: pre + c.to })) }));
+          saveInf();
+          el.innerHTML = `<div class="fp-stage"><img class="fp-bg" alt="" src="${bgUrl(game, r.scenes[0].bg)}"><div class="fp-title"><h1>${esc(partName(part))}</h1><p>${esc(r.title || '')}</p>${knows()}<button class="fp-btn" data-begin>Begin</button></div></div>`;
+          el.querySelector('[data-begin]').onclick = () => play({ scene: pre + r.scenes[0].id, line: 0 });
+        }
+      } catch (e) {
+        if (el.firstElementChild !== fromTitle) return;
+        el.innerHTML = `<div class="fp-stage"><div class="fp-title"><h1>The story paused</h1><p>${esc(e.message || 'Meta AI could not continue.')}</p><div class="fp-row"><button class="fp-btn" data-retry>Try again</button><button class="fp-btn fp-quiet" data-back>Back</button></div></div></div>`;
+        el.querySelector('[data-retry]').onclick = retry;
+        el.querySelector('[data-back]').onclick = () => { if (action) inf.path.pop(); action ? play({ scene: at.id, line: 99 }) : ending(); };
+      }
     }
     function title() {
       if (ctl) ctl.destroy(); ctl = null; music.stop();
@@ -283,7 +392,7 @@
       el.innerHTML = `<div class="fp-stage"><img class="fp-bg" alt="" src="${bgUrl(game, (game.scenes[0] || {}).bg)}"><div class="fp-title"><h1>${esc(game.title || 'Untitled')}</h1><p>${esc(game.logline || '')}</p>
         <div class="fp-row">${resumable(auto) ? `<button class="fp-btn" data-continue>Continue · ${esc(auto.title)}</button>` : ''}<button class="fp-btn" data-start>${resumable(auto) ? 'New game' : 'Start'}</button>${any ? '<button class="fp-btn" data-load>Load</button>' : ''}</div>
         <span class="fp-small">Made with Game Forge · written with Meta AI</span></div></div>`;
-      el.querySelector('[data-start]').onclick = () => play(null);
+      el.querySelector('[data-start]').onclick = restart;
       const c = el.querySelector('[data-continue]'); if (c) c.onclick = () => play(auto);
       const l = el.querySelector('[data-load]'); if (l) l.onclick = () => panel('load', true);
     }
@@ -295,7 +404,7 @@
       const slotBtn = s => { const v = all[s]; const ok = mode === 'save' || resumable(v);
         return `<button class="fp-slot" data-slot="${s}" ${ok ? '' : 'disabled'}><b>Slot ${s}</b><span>${v ? esc(v.title) + ' · ' + when(v.at) : 'Empty'}</span></button>`; };
       const body = mode === 'menu'
-        ? `<button class="fp-btn" data-p="save">Save game</button><button class="fp-btn" data-p="load">Load game</button><button class="fp-btn" data-p="title">Title screen</button><button class="fp-btn fp-quiet" data-p="close">Back to game</button>`
+        ? `${knows()}<button class="fp-btn" data-p="save">Save game</button><button class="fp-btn" data-p="load">Load game</button><button class="fp-btn" data-p="title">Title screen</button><button class="fp-btn fp-quiet" data-p="close">Back to game</button>`
         : SLOTS.map(slotBtn).join('') + `<button class="fp-btn fp-quiet" data-p="${fromTitle ? 'title' : 'menu'}">Back</button>`;
       const wrap = document.createElement('div');
       wrap.className = 'fp-panel-wrap';
@@ -318,12 +427,37 @@
       });
       (el.querySelector('.fp-stage') || el).appendChild(wrap);
     }
-    function ending() {
+    async function ending(scene) {
       if (ctl) ctl.destroy(); ctl = null;
-      el.innerHTML = `<div class="fp-stage"><div class="fp-title"><h1>The End</h1><p>${esc(game.title || '')}</p><button class="fp-btn" data-again>Play again</button></div></div>`;
-      el.querySelector('[data-again]').onclick = title;
+      if (scene && scene.title) { endedAt = scene; inf.path.push({ scene: scene.title, gist: gist(scene), ending: true }); saveInf(); }
+      const at = scene || lastScene(), next = partName(inf.part + 1);
+      const draw = can => {
+        el.innerHTML = `<div class="fp-stage"><img class="fp-bg" alt="" src="${bgUrl(game, at.bg)}"><div class="fp-title"><h1>${esc(inf.ended)}</h1><p>${esc(game.title || '')}</p>${knows()}
+          ${can ? `<p>Want to keep going?</p><div class="fp-row"><button class="fp-mode" data-more="next"><b>Enhanced</b><span>Type what you do. Meta AI writes each scene as you go, for as long as you like.</span></button><button class="fp-mode" data-more="part"><b>${esc(next)}</b><span>Meta AI writes a whole new chapter from your choices, with set choices to pick from.</span></button></div>` : ''}
+          <button class="fp-btn ${can ? 'fp-quiet' : ''}" data-again>Play again</button></div></div>`;
+        el.querySelector('[data-again]').onclick = title;
+        el.querySelectorAll('[data-more]').forEach(b => { b.onclick = () => write(b.dataset.more); });
+      };
+      draw(false);
+      if (ai && await ai.ready && !ctl) draw(true);
     }
     title();
+  }
+
+  // In the Community a novel runs sealed off, so it asks the page around it to
+  // reach Meta AI. If nobody answers, it is a saved file and simply ends.
+  function frameBridge() {
+    if (window.parent === window) return null;
+    const waiting = {}; let n = 0, yes;
+    const ready = new Promise(res => { yes = res; setTimeout(() => res(false), 1500); });
+    window.addEventListener('message', e => {
+      if (e.source !== window.parent || !e.data || !e.data.forgeInfinity) return;
+      const d = e.data.forgeInfinity;
+      if (d.type === 'ready') yes(true);
+      if (d.type === 'reply' && waiting[d.id]) { const w = waiting[d.id]; delete waiting[d.id]; d.error ? w.rej(new Error(d.error)) : w.res(d.result); }
+    });
+    window.parent.postMessage({ forgeInfinity: { type: 'hello' } }, '*');
+    return { ready, ask: request => new Promise((res, rej) => { const id = ++n; waiting[id] = { res, rej }; window.parent.postMessage({ forgeInfinity: { type: 'ask', id, request } }, '*'); }) };
   }
 
   window.ForgePlayer = { mount, boot, music, sanitizeSvg, fallbackBg, fallbackChar, bgUrl, charUrl, svgUrl, proceduralTrack, CSS };

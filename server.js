@@ -10,6 +10,7 @@ const path = require('path');
 
 loadEnv(path.join(__dirname, '.env'));
 const community = require('./community');
+const infinity = require('./infinity');
 
 const PORT = Number(process.env.PORT) || 5173;
 const HOST = process.env.HOST || '127.0.0.1';
@@ -351,6 +352,7 @@ http.createServer(async (req, res) => {
   if (req.method !== 'GET' && !sameSite(req)) return send(res, 403, { error: 'Forbidden' });
   try { if (await community.handle(req, res, send, readBody)) return; }
   catch (e) { console.error('Community error:', e); return send(res, 500, { error: 'The community server hit an error.' }); }
+  if (req.method === 'POST' && req.url === '/api/infinity') return infinity.handle(req, res, send, readBody, { baseUrl: ENV_BASE, key: ENV_KEY, model: ENV_MODEL, extractText, local: onThisPC(req) });
   // If this server is opened up to other people (HOST=0.0.0.0) they only get
   // the Community: the AI, key and GPU routes stay on this PC.
   if (!onThisPC(req)) {

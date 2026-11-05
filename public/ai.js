@@ -233,6 +233,18 @@ Use only existing character names. 3-7 lines.`;
   return j;
 }
 
+// Carries a 2D novel on past The End (see infinity.js). Prompts and keys stay
+// on the server; this only sends the story so far.
+export async function continueNovel(request, own = true) {
+  const r = await fetch('/api/infinity', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...request, ...(own ? { apiKey: settings.apiKey || undefined, baseUrl: settings.baseUrl, model: settings.model } : {}) }),
+  });
+  const d = await r.json().catch(() => ({ error: 'The Game Forge server did not answer.' }));
+  if (!r.ok || d.error) throw new Error(d.error || 'HTTP ' + r.status);
+  return d;
+}
+
 // Short tags for posting a novel to the Community.
 export async function suggestTags(title, about) {
   const j = await llamaJSON('You tag visual novels so readers can find ones they like. Return ONLY JSON: {"tags": ["..."]} with 3 to 6 short lowercase tags covering genre, mood and setting.', `Title: ${title}\n${about || ''}`, { temperature: 0.3, maxTokens: 300 });

@@ -16,6 +16,7 @@ body.
 | **New game with Meta AI** | Writes the title, characters, locations, soundtrack and every branching scene (dialogue + choices) |
 | **Forge Assistant** | Chat copilot that reviews your story, brainstorms, and *edits the project directly*. Every change can be undone |
 | **Write this scene** | Rewrites one scene's dialogue, cast and choices from your direction |
+| **Infinity novel** | After The End, Meta AI keeps the story going: scene by scene from what the player types (Enhanced), or a whole new chapter with fixed choices (Part Two). It learns what each player enjoys from what they do |
 | **2D art** | Muse Image generates widescreen backgrounds and character sprites using a Meta Model API key |
 | **Music** | Composes looping melodies that play in the game |
 | **3D assets** | Designs buildings, people and props from 3D shapes; export as `.glb` for Unity, Godot, Unreal or Blender |
@@ -227,6 +228,25 @@ the project folder.
   project back.
 - **Share:** **Save → Save 2D novel (.html)** or **Save 3D novel (.html)** saves
   one file that runs in any browser.
+- **Infinity novel (the story never has to end):** when a player reaches The End
+  of a 2D novel, in **Play build** or the Community, they can keep going with
+  Meta AI in one of two modes:
+  - **Enhanced:** there are no set choices. The player types what they do, and
+    Meta AI writes the next scene on the spot, for as long as they like.
+  - **Part Two:** Meta AI writes a whole new chapter in one go, with fixed
+    choices to pick from. Its ending offers Part Three, and so on.
+
+  Every choice and typed action teaches the story what that player enjoys and
+  avoids, and it steers towards that. Players can see what it has learned at
+  each ending and in **☰ Menu**. Their progress and that memory are saved in
+  their browser (in the Community the sandbox blocks this, so they last for that
+  sitting). What Meta AI writes never changes your project. It uses 2D novels
+  only, and new characters and places it invents get placeholder art.
+  **Who pays:** Play build uses the key in the Meta AI tab. In the Community it
+  uses that browser's key on the same computer, otherwise `MODEL_API_KEY` on the
+  server, limited to 60 requests an hour per visitor. With no key, players see a
+  message saying one is needed. A saved `.html` novel opened on its own simply
+  ends, because it has no AI to call.
 - **Community:** click **Community** in the top bar, or open
   http://localhost:5173/community.html. People can browse, search and play
   novels posted by others, and like or dislike them. To post, use **Save → Post
@@ -274,6 +294,7 @@ panel instead: put `SAM3D_OBJECTS_REPO` (the sam-3d-objects folder) and
 | `start-game-forge.bat` | Windows launcher for Game Forge |
 | `server.js` | Local web server; forwards AI calls to Meta (keeps keys server-side) |
 | `community.js` | Community server: novels, likes and dislikes, taste profiles, sandboxed playback |
+| `infinity.js` | Infinity novels: prompts, checks on what Meta AI writes, and key handling for continuing a story |
 | `public/` | The editor: `app.js` (UI), `ai.js` (every Meta AI prompt), `coder.js` (3D Novel: what Muse Wonder is told, and the `FORGE` runtime with your models, `dressBody`, the optional 2D story and music), `pack.js` (asset pack .zip), `player.js` (2D novel player, also used by exported 2D novels), `viewer3d.js` (3D viewer + GLB export), `sample.js` (starter game) |
 | `.env.example` | Optional server settings (API key, model, SAM 3D service URL) |
 | `sam3d-service/server.py` | SAM 3D service (Body and Objects) that returns `.glb` meshes |

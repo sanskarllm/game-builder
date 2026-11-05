@@ -118,6 +118,30 @@ function Player({ n, onClose, onReact }) {
   const frame = useRef();
   const [page, setPage] = useState(null);
   const [failed, setFailed] = useState('');
+  // The novel is sealed off, so it asks here when the player wants the story
+  // to go on. Only story fields are passed along, and only so many per novel.
+  useEffect(() => {
+    let busy = false, count = 0;
+    const on = async e => {
+      if (!frame.current || e.source !== frame.current.contentWindow || !e.data || !e.data.forgeInfinity) return;
+      const d = e.data.forgeInfinity, reply = m => e.source.postMessage({ forgeInfinity: m }, '*');
+      if (d.type === 'hello') return reply({ type: 'ready' });
+      if (d.type !== 'ask' || busy) return;
+      if (++count > 40) return reply({ type: 'reply', id: d.id, error: 'That is a lot of story for one sitting. Reopen the novel to carry on.' });
+      busy = true;
+      try {
+        const q = d.request || {}, own = JSON.parse(localStorage.getItem('gf.settings') || '{}');
+        const request = { mode: q.mode, action: q.action, part: q.part, memory: q.memory, path: q.path, story: q.story, lastLocation: q.lastLocation };
+        if (own.apiKey) Object.assign(request, { apiKey: own.apiKey, baseUrl: own.baseUrl, model: own.model });
+        const r = await fetch('/api/infinity', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request) });
+        const data = await r.json().catch(() => ({ error: 'The Game Forge server did not answer.' }));
+        reply(r.ok && !data.error ? { type: 'reply', id: d.id, result: data } : { type: 'reply', id: d.id, error: data.error || 'Meta AI could not continue.' });
+      } catch (err) { reply({ type: 'reply', id: d.id, error: 'Meta AI could not continue.' }); }
+      busy = false;
+    };
+    window.addEventListener('message', on);
+    return () => window.removeEventListener('message', on);
+  }, []);
   useEffect(() => {
     let live = true;
     fetch('/community/play/' + n.id).then(r => { if (!r.ok) throw new Error('This novel could not be loaded.'); return r.text(); }).then(t => live && setPage(t)).catch(e => live && setFailed(e.message));

@@ -1285,7 +1285,7 @@ function PublishDialog({ game, fullGamePage, aiReady, notify, onClose }) {
 
 function PlayerOverlay({ game, onClose }) {
   const ref = useRef();
-  useEffect(() => { FP.boot(ref.current, game); const k = e => { if (e.key === 'Escape') onClose(); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, []);
+  useEffect(() => { FP.boot(ref.current, game, { ai: { ready: Promise.resolve(true), ask: r => AI.continueNovel(r) } }); const k = e => { if (e.key === 'Escape') onClose(); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, []);
   return html`<div class="player-overlay"><button class="btn btn-secondary player-close" onClick=${onClose}><i class="ph ph-x"></i>Close (Esc)</button><div class="frame" ref=${ref}></div></div>`;
 }
 
